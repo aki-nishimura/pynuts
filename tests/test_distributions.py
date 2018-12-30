@@ -1,6 +1,6 @@
 import numpy as np
 
-from .distributions import BivariateGaussian, BivariateSkewNormal
+from .distributions import BivariateGaussian, BivariateSkewNormal, BivariateBanana
 
 def test_bi_gaussian():
     x = np.ones(2)
@@ -12,6 +12,12 @@ def test_skew_normal():
     x = np.ones(2)
     skewnorm = BivariateSkewNormal()
     f = skewnorm.compute_logp_and_gradient
+    assert numerical_grad_is_close(f, x)
+
+def test_banana():
+    x = np.zeros(2)
+    banana = BivariateBanana()
+    f = banana.compute_logp_and_gradient
     assert numerical_grad_is_close(f, x)
 
 def numerical_grad_is_close(f, x, atol=10E-6, rtol=10E-6, dx=10E-6):

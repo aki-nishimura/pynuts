@@ -34,6 +34,39 @@ class BivariateGaussian():
         return 2 * np.min(pc_scale)
 
 
+class BivariateBanana():
+    """
+    Define a posterior under the model
+        y | x_1, x_2 \sim Normal(mean = x_1 + x_2^2, sigma^2)
+        x_1, x_2 \sim Normal(0, 1)
+    """
+
+    def __init__(self, y=1., sigma=.5):
+        self.y = y
+        self.phi = sigma ** -2
+
+    def compute_logp_and_gradient(self, x, logp_only=False):
+        logp = - np.sum(x ** 2) / 2
+        logp += - self.phi / 2 * (self.y - x[0] - x[1] ** 2) ** 2
+        grad = - x
+        grad += self.phi * (self.y - x[0] - x[1] ** 2) \
+            * np.array([1, 2 * x[1]])
+        return logp, grad
+
+    def compute_marginal_pdf(self, x_1, x_2):
+        logp = np.zeros((len(x_1), len(x_2)))
+        for i in range(len(x_1)):
+            for j in range(len(x_2)):
+                logp[i, j] = self.compute_logp_and_gradient(np.array([x_1[i], x_2[j]]))[0]
+
+        joint_pdf = np.exp(logp)
+        pdf_1 = np.trapz(joint_pdf, x_2, axis=-1)
+        pdf_1 /= np.trapz(pdf_1, x_1)
+        pdf_2 = np.trapz(joint_pdf, x_1, axis=0)
+        pdf_2 /= np.trapz(pdf_2, x_2, axis=0)
+        return pdf_1, pdf_2
+
+
 """
 Defines decoraters to take the log density and gradient functions for a
 random variable X and returns the corresponding functions for a random
