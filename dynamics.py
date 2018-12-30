@@ -9,9 +9,18 @@ momentum distributions can also be employed straightwardly.
 
 class HamiltonianDynamics():
 
-    def __init__(self):
+    def __init__(self, mass=None):
+        """
+        Parameters
+        ----------
+        mass(p, power) : callable
+            Returns a vector obtained by multiplying the vector p with matrix
+            M ** power for power == -1 or power == 1/2. The matrix L corresponding
+            to M ** 1/2 only needs to satisfy L L' = M. Passing M = None defaults
+            to a dynamics with the identity mass matrix.
+        """
         self.integrator = velocity_verlet
-        self.momentum = GaussianMomentum()
+        self.momentum = GaussianMomentum(mass)
 
     def integrate(self, f, dt, q, p, grad):
         q, p, logp, grad \
@@ -39,14 +48,17 @@ def velocity_verlet(
 
 class GaussianMomentum():
 
-    def __init__(self):
-        pass
+    def __init__(self, mass=None):
+        if mass is None:
+            mass = lambda p, power: p
+        self.mass = mass
 
     def draw_random(self, n_param):
-        return np.random.randn(n_param)
+        p = self.mass(np.random.randn(n_param), 1/2)
+        return p
 
     def get_grad(self, p):
-        return - p
+        return - self.mass(p, -1)
 
     def get_logp(self, p):
-        return - 0.5 * np.dot(p, p)
+        return - 0.5 * np.dot(p, self.mass(p, -1))

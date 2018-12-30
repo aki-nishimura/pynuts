@@ -3,6 +3,8 @@ from .. import hmc
 from .distributions import BivariateGaussian
 
 
+# TODO: Test the use of non-identity mass matrices.
+
 def test_early_termination_symmetry():
 
     bi_gauss = BivariateGaussian(rho=.9, sigma=np.array([1., 2.]))
