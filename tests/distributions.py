@@ -17,9 +17,13 @@ class BivariateGaussian():
         logp = np.inner(x, grad) / 2
         return logp, grad
 
-    def compute_marginal_pdf(self, x, axis):
-        pdf = 1 / np.sqrt(2 * np.pi) / self.sigma[axis] \
-              * np.exp(- x ** 2 / 2 / self.sigma[axis] ** 2)
+    def compute_marginal_pdf(self, x_1, x_2):
+        x = [x_1, x_2]
+        pdf = [
+            1 / np.sqrt(2 * np.pi) / self.sigma[axis] \
+                * np.exp(- x[axis] ** 2 / 2 / self.sigma[axis] ** 2)
+            for axis in [0, 1]
+        ]
         return pdf
 
     def get_principal_components(self):
