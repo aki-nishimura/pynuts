@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.stats import norm, skewnorm
+
 
 class BivariateGaussian():
 
@@ -65,97 +65,4 @@ class BivariateBanana():
         pdf_2 = np.trapz(joint_pdf, x_1, axis=0)
         pdf_2 /= np.trapz(pdf_2, x_2, axis=0)
         return pdf_1, pdf_2
-
-
-"""
-Defines decoraters to take the log density and gradient functions for a
-random variable X and returns the corresponding functions for a random
-variable Y = np.dot(Q, X) for a rotation matrix Q.
-"""
-
-def rotate_logp(rotation, compute_logp):
-    Q = rotation
-    def compute_rotated_logp(y):
-        return compute_logp(Q.T.dot(y))
-    return compute_rotated_logp
-
-
-def rotate_gradient(rotation, compute_gradient):
-    Q = rotation
-    def compute_rotated_gradient(y):
-        return Q.dot(compute_gradient(Q.T.dot(y)))
-    return compute_rotated_gradient
-
-
-class BivariateSkewNormal():
-    """
-    Product of independent skew-normals are rotated (i.e. linearly trasformed
-    through an orthogonal matrix).
-    """
-
-    def __init__(self, shape=np.array([1., 4.]), rotation=None):
-
-        if rotation is None:
-            rotation = np.array([
-                [1., 1.],
-                [1., -1.]
-            ]) / np.sqrt(2)
-
-        self.shape = shape
-        self.rotation = rotation
-
-        product_dist = ProductSkewNormal(self.shape)
-        self.compute_logp = rotate_logp(
-            self.rotation, product_dist.compute_logpdf
-        )
-        self.compute_gradient = rotate_gradient(
-            self.rotation, product_dist.compute_gradient
-        )
-
-    def compute_logp_and_gradient(self, x, logp_only=False):
-        logp = self.compute_logp(x)
-        if logp_only:
-            grad = None
-        else:
-            grad = self.compute_gradient(x)
-        return logp, grad
-
-    def compute_marginal_pdf(self, x, y):
-        logp = np.zeros((len(x), len(y)))
-        for i in range(len(x)):
-            for j in range(len(y)):
-                logp[i, j] = self.compute_logp(np.array([x[i], y[j]]))
-        marginal_pdf = [
-            np.trapz(np.exp(logp), [y, x][axis], axis=axis - 1)
-            for axis in [0, 1]
-        ]
-        return marginal_pdf
-
-    def decorrelate(self, x_samples):
-        """
-        Rotate back the coordinates so that the distributions become independent.
-        Params:
-        ------
-        x_samples: numpy array of size (n_param, ...)
-        """
-        Q = self.rotation
-        return Q.T.dot(x_samples)
-
-
-
-class ProductSkewNormal():
-
-    def __init__(self, shape):
-        self.shape = shape
-
-    def compute_logpdf(self, x):
-        logp = np.sum(
-            skewnorm.logpdf(x, self.shape)
-        )
-        return logp
-
-    def compute_gradient(self, x):
-        grad = - x + self.shape * np.exp(
-            norm.logpdf(self.shape * x) - norm.logcdf(self.shape * x)
-        )
-        return grad
+    
