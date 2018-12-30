@@ -3,7 +3,7 @@ import math
 import time
 from .stepsize_adapter import HmcStepsizeAdapter
 from .util import warn_message_only
-
+from .dynamics import integrator, compute_hamiltonian, draw_momentum
 
 def generate_samples(
         f, theta0, dt_range, nstep_range, n_burnin, n_sample,
@@ -162,21 +162,3 @@ def update_running_minmax(running_min, running_max, curr_val):
     running_min = min(running_min, curr_val)
     running_max = max(running_max, curr_val)
     return running_min, running_max
-
-
-def integrator(f, dt, theta, p, grad):
-
-    p = p + 0.5 * dt * grad
-    theta = theta + dt * p
-    logp, grad = f(theta)
-    p = p + 0.5 * dt * grad
-
-    return theta, p, logp, grad
-
-
-def compute_hamiltonian(logp, p):
-    return - logp + 0.5 * np.dot(p, p)
-
-
-def draw_momentum(n_param):
-    return np.random.randn(n_param)
