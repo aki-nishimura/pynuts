@@ -3,7 +3,14 @@ import math
 import time
 from .stepsize_adapter import HmcStepsizeAdapter
 from .util import warn_message_only
-from .dynamics import integrator, compute_hamiltonian, draw_momentum
+from .dynamics import HamiltonianDynamics
+
+
+dynamics = HamiltonianDynamics()
+integrator = dynamics.integrate
+compute_hamiltonian = dynamics.compute_hamiltonian
+draw_momentum = dynamics.draw_momentum
+
 
 def generate_samples(
         f, theta0, dt_range, nstep_range, n_burnin, n_sample,
