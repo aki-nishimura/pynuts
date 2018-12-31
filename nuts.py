@@ -10,6 +10,51 @@ compute_hamiltonian = dynamics.compute_hamiltonian
 random_momentum = dynamics.draw_momentum
 
 
+def generate_samples(
+        f, theta0, dt_range, n_burnin, n_sample,
+        seed=None, n_update=0, adapt_stepsize=False):
+
+    # TODO: incorporate the stepsize adaptation.
+    # TODO: return additional info.
+
+    if seed is not None:
+        np.random.seed(seed)
+
+    if np.isscalar(dt_range):
+        dt_range = np.array(2 * [dt_range])
+
+    theta = theta0
+    if n_update > 0:
+        n_per_update = math.ceil((n_burnin + n_sample) / n_update)
+    else:
+        n_per_update = float('inf')
+    samples = np.zeros((len(theta), n_sample + n_burnin))
+    logp_samples = np.zeros(n_sample + n_burnin)
+    accept_prob = np.zeros(n_sample + n_burnin)
+
+    tic = time.time()
+    logp, grad = f(theta)
+    use_averaged_stepsize = False
+    for i in range(n_sample + n_burnin):
+        dt = np.random.uniform(dt_range[0], dt_range[1])
+        theta, logp, grad, alpha_ave, nfevals_total \
+            = nuts(f, dt, theta, logp, grad)
+        if i < n_burnin and adapt_stepsize:
+            pass
+            # TODO: adapt stepsize.
+        elif i == n_burnin - 1:
+            use_averaged_stepsize = True
+        samples[:, i] = theta
+        logp_samples[i] = logp
+        if (i + 1) % n_per_update == 0:
+            print('{:d} iterations have been completed.'.format(i + 1))
+
+    toc = time.time()
+    time_elapsed = toc - tic
+
+    return samples, logp_samples, accept_prob, time_elapsed
+
+
 def nuts(f, epsilon, theta, logp, grad, max_depth=10, warnings=True):
 
     d = len(theta)
@@ -142,6 +187,8 @@ def build_tree(theta, p, grad, logu, dir, depth, epsilon, f, joint0):
            thetaprime, gradprime, logpprime, nprime, stopprime, \
            alphaprime, nalphaprime, nfevals_total
 
+
+# TODO: replace the following functions with 'generate_samples' function above.
 
 def nuts_adap(f, n_sample, n_warmup, theta0, delta=0.8, seed=None, epsilon=None, n_update=10):
     """
