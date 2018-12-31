@@ -36,7 +36,7 @@ def generate_samples(
         n_per_update = math.ceil((n_burnin + n_sample) / n_update)
     else:
         n_per_update = float('inf')
-    pathlen_ave = 0
+
     samples = np.zeros((len(theta), n_sample + n_burnin))
     logp_samples = np.zeros(n_sample + n_burnin)
     accept_prob = np.zeros(n_sample + n_burnin)
@@ -58,7 +58,6 @@ def generate_samples(
             max_stepsize_adapter.adapt_stepsize(info['hamiltonian_error'])
         elif i == n_burnin - 1:
             use_averaged_stepsize = True
-        pathlen_ave = i / (i + 1) * pathlen_ave + 1 / (i + 1) * pathlen
         samples[:, i] = theta
         logp_samples[i] = logp
         if (i + 1) % n_per_update == 0:
