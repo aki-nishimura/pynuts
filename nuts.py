@@ -88,10 +88,10 @@ def nuts(f, dt, q, logp, grad, max_depth=10, warnings=True):
         # Double the size of the tree.
         if (dir == -1):
             qminus, pminus, gradminus, _, _, _, qprime, gradprime, logpprime, nprime, stopprime, alpha, nalpha, nfevals = \
-                build_tree(qminus, pminus, gradminus, logu, dir, depth, dt, f, joint)
+                build_tree_wrapper(qminus, pminus, gradminus, logu, dir, depth, dt, f, joint)
         else:
             _, _, _, qplus, pplus, gradplus, qprime, gradprime, logpprime, nprime, stopprime, alpha, nalpha, nfevals = \
-                build_tree(qplus, pplus, gradplus, logu, dir, depth, dt, f, joint)
+                build_tree_wrapper(qplus, pplus, gradplus, logu, dir, depth, dt, f, joint)
         nfevals_total += nfevals
 
         # Use Metropolis-Hastings to decide whether or not to move to a
@@ -129,63 +129,118 @@ def stop_criterion(qminus, qplus, pminus, pplus):
     return (np.dot(dq, pminus) < 0) or (np.dot(dq, pplus) < 0)
 
 
-def build_tree(q, p, grad, logu, dir, depth, dt, f, joint0):
+def build_tree_wrapper(q, p, grad, logu, dir, depth, dt, f, joint0):
     """The main recursion."""
 
     nfevals_total = 0
-    if (depth == 0):
-        # Base case: Take a single leapfrog step in the direction dir.
-        qprime, pprime, logpprime, gradprime = integrator(f, dir * dt, q, p, grad)
-        nfevals_total += 1
-        if math.isinf(logpprime):
-            joint = - float('inf')
-        else:
-            joint = - compute_hamiltonian(logpprime, pprime)
-        # Is the new point in the slice?
-        nprime = int(logu < joint)
-        # Is the simulation wildly inaccurate?
-        stopprime = (logu - 100) > joint
-        # Set the return values---minus=plus for all things here, since the
-        # "tree" is of depth 0.
-        qminus = qprime
-        qplus = qprime
-        pminus = pprime
-        pplus = pprime
-        gradminus = gradprime
-        gradplus = gradprime
-        # Compute the acceptance probability.
-        alphaprime = min(1, np.exp(joint - joint0))
-        nalphaprime = 1
-    else:
-        # Recursion: Implicitly build the height depth-1 left and right subtrees.
-        qminus, pminus, gradminus, qplus, pplus, gradplus, qprime, gradprime, logpprime, nprime, stopprime, alphaprime, nalphaprime, nfevals \
-             = build_tree(q, p, grad, logu, dir, depth - 1, dt, f, joint0)
-        nfevals_total += nfevals
-        # No need to keep going if the stopping criteria were met in the first subtree.
-        if not stopprime:
-            if (dir == -1):
-                qminus, pminus, gradminus, _, _, _, qprime2, gradprime2, logpprime2, nprime2, stopprime2, alphaprime2, nalphaprime2, nfevals \
-                    = build_tree(qminus, pminus, gradminus, logu, dir, depth - 1, dt, f, joint0)
-            else:
-                _, _, _, qplus, pplus, gradplus, qprime2, gradprime2, logpprime2, nprime2, stopprime2, alphaprime2, nalphaprime2, nfevals \
-                    = build_tree(qplus, pplus, gradplus, logu, dir, depth - 1, dt, f, joint0)
-            nfevals_total += nfevals
-            # Choose which subtree to propagate a sample up from.
-            if (np.random.uniform() < nprime2 / max(nprime + nprime2, 1)):
-                qprime = qprime2
-                gradprime = gradprime2
-                logpprime = logpprime2
-            # Update the number of valid points.
-            nprime = nprime + nprime2
-            # Update the stopping criterion.
-            stopprime = (stopprime or stopprime2 or stop_criterion(qminus, qplus, pminus, pplus))
-            # Update the acceptance probability statistics.
-            alphaprime = alphaprime + alphaprime2
-            nalphaprime = nalphaprime + nalphaprime2
+    tree = build_tree(f, dt, q, p, grad, depth, dir, logu)
+
+    # TODO: take care of unstable trajectories later
+
+    qminus, pminus, gradminus = tree.get_states(-1)
+    qplus, pplus, gradplus = tree.get_states(1)
+    qprime, _, gradprime = tree.get_states(0)
+    stopprime = tree.u_turn_detected
+    logpprime, _ = f(qprime)
+    nprime = tree.n_acceptable_states
+
+    # TODO: take care of the acceptance probability related quantities later.
+
+    alphaprime = 1.
+    nalphaprime = 2 ** depth
 
     return qminus, pminus, gradminus, qplus, pplus, gradplus, \
            qprime, gradprime, logpprime, nprime, stopprime, \
            alphaprime, nalphaprime, nfevals_total
+
+
+def build_tree(f, dt, q, p, grad, height, direction, logu):
+
+    if height == 0:
+        return build_singleton_tree(f, dt, q, p, grad, direction, logu)
+
+    subtree = build_tree(f, dt, q, p, grad, height - 1, direction, logu)
+    if not (subtree.u_turn_detected or subtree.trajectory_is_unstable):
+        q, p, grad = subtree.get_states(direction)
+        next_subtree = build_tree(f, dt, q, p, grad, height - 1, direction, logu)
+        subtree.merge_next_tree(next_subtree, direction)
+
+    return subtree
+
+
+def build_singleton_tree(f, dt, q, p, grad, direction, logu):
+    q, p, logp, grad = integrator(f, direction * dt, q, p, grad)
+    if math.isinf(logp):
+        log_joint = - float('inf')
+    else:
+        log_joint = - compute_hamiltonian(logp, p)
+    return TrajectoryTree(q, p, grad, log_joint, logu)
+
+
+class TrajectoryTree():
+    """
+    Collection of (a subset of) states along the simulated Hamiltonian dynamics
+    trajcetory endowed with a binary tree structure.
+    """
+
+    def __init__(self, q0, p0, grad0, log_joint0, log_joint_threshold):
+        # Store the frontmost and rearmost states of the trajectory as well as
+        # one inner state sampled uniformly from the acceptable states.
+        n_states_to_store = 3
+        self.positions = n_states_to_store * [q0]
+        self.momentums = n_states_to_store * [p0]
+        self.momentums[self.get_index(direction=0)] = None
+            # No use for the momentum except at the front and rear of the trajectory.
+        self.gradients = n_states_to_store * [grad0]
+        self.u_turn_detected = False
+        self.trajectory_is_unstable = False
+        self.n_acceptable_states = int(log_joint0 > log_joint_threshold)
+
+    def set_states(self, q, p, grad, direction):
+        index = self.get_index(direction)
+        self.positions[index] = q
+        self.momentums[index] = p
+        self.gradients[index] = grad
+
+    def get_states(self, direction):
+        index = self.get_index(direction)
+        return self.positions[index], self.momentums[index], self.gradients[index]
+
+    def set_sample(self, q, grad):
+        index = self.get_index(direction=0)
+        self.positions[index] = q
+        self.gradients[index] = grad
+
+    def get_sample(self):
+        index = self.get_index(direction=0)
+        return self.positions[index], self.gradients[index]
+
+    def get_index(self, direction):
+        return 1 + direction
+
+    def merge_next_tree(self, next_tree, direction):
+        self.set_states(*next_tree.get_states(direction), direction)
+        u_turn_detected_within_subtrees \
+            = self.u_turn_detected or next_tree.u_turn_detected
+        self.u_turn_detected = (
+            self.check_u_turn_at_front_and_rear_ends()
+            or u_turn_detected_within_subtrees
+        )
+        self.update_sample(next_tree)
+        self.n_acceptable_states += next_tree.n_acceptable_states
+
+    def check_u_turn_at_front_and_rear_ends(self):
+        q_front, p_front, _ = self.get_states(1)
+        q_rear, p_rear, _ = self.get_states(-1)
+        dq = q_front - q_rear
+        return (np.dot(dq, p_front) < 0) or (np.dot(dq, p_rear) < 0)
+
+    def update_sample(self, next_tree):
+        n_total = self.n_acceptable_states + next_tree.n_acceptable_states
+        sampling_weight_on_next_tree \
+            = next_tree.n_acceptable_states / max(1, n_total)
+        if np.random.uniform() < sampling_weight_on_next_tree:
+            self.set_sample(*next_tree.get_sample())
 
 
 # TODO: replace the following functions with 'generate_samples' function above.
