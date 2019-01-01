@@ -98,8 +98,7 @@ def nuts(f, dt, q, logp, grad, max_depth=10, warnings=True):
             qminus, pminus, gradminus = next_tree.get_states(-1)
         else:
             qplus, pplus, gradplus = next_tree.get_states(1)
-        qprime, gradprime = next_tree.get_sample()
-        logpprime, _ = f(qprime)
+        qprime, logpprime, gradprime = next_tree.get_sample()
 
         # Use Metropolis-Hastings to decide whether or not to move to a
         # point from the half-tree we just generated.
@@ -157,7 +156,7 @@ def build_singleton_tree(f, dt, q, p, grad, direction, logu):
         log_joint = - float('inf')
     else:
         log_joint = - compute_hamiltonian(logp, p)
-    return TrajectoryTree(q, p, grad, log_joint, logu)
+    return TrajectoryTree(q, p, logp, grad, log_joint, logu)
 
 
 class TrajectoryTree():
@@ -166,7 +165,7 @@ class TrajectoryTree():
     trajcetory endowed with a binary tree structure.
     """
 
-    def __init__(self, q0, p0, grad0, log_joint0, log_joint_threshold):
+    def __init__(self, q0, p0, logp0, grad0, log_joint0, log_joint_threshold):
         # Store the frontmost and rearmost states of the trajectory as well as
         # one inner state sampled uniformly from the acceptable states.
         n_states_to_store = 3
@@ -175,6 +174,7 @@ class TrajectoryTree():
         self.momentums[self.get_index(direction=0)] = None
             # No use for the momentum except at the front and rear of the trajectory.
         self.gradients = n_states_to_store * [grad0]
+        self.logp_at_sampling_location = logp0
         self.u_turn_detected = False
         self.trajectory_is_unstable = False
         self.n_acceptable_states = int(log_joint0 > log_joint_threshold)
@@ -189,14 +189,15 @@ class TrajectoryTree():
         index = self.get_index(direction)
         return self.positions[index], self.momentums[index], self.gradients[index]
 
-    def set_sample(self, q, grad):
+    def set_sample(self, q, logp, grad):
         index = self.get_index(direction=0)
         self.positions[index] = q
         self.gradients[index] = grad
+        self.logp_at_sampling_location = logp
 
     def get_sample(self):
         index = self.get_index(direction=0)
-        return self.positions[index], self.gradients[index]
+        return self.positions[index], self.logp_at_sampling_location, self.gradients[index]
 
     def get_index(self, direction):
         return 1 + direction
