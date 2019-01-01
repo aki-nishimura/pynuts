@@ -85,14 +85,21 @@ def nuts(f, dt, q, logp, grad, max_depth=10, warnings=True):
         # Choose a direction. -1 = backwards, 1 = forwards.
         dir = int(2 * (np.random.uniform() < 0.5) - 1)
 
-        # Double the size of the tree.
-        if (dir == -1):
-            qminus, pminus, gradminus, _, _, _, qprime, gradprime, logpprime, nprime, stopprime, alpha, nalpha, nfevals = \
-                build_tree_wrapper(qminus, pminus, gradminus, logu, dir, depth, dt, f, joint)
+        if dir == -1:
+            init_state = [qminus, pminus, gradminus]
         else:
-            _, _, _, qplus, pplus, gradplus, qprime, gradprime, logpprime, nprime, stopprime, alpha, nalpha, nfevals = \
-                build_tree_wrapper(qplus, pplus, gradplus, logu, dir, depth, dt, f, joint)
-        nfevals_total += nfevals
+            init_state = [qplus, pplus, gradplus]
+
+        next_tree = build_next_tree(f, dt, *init_state, depth, dir, logu)
+        nprime = next_tree.n_acceptable_states
+        stopprime = next_tree.u_turn_detected or next_tree.trajectory_is_unstable
+
+        if dir == -1:
+            qminus, pminus, gradminus = next_tree.get_states(-1)
+        else:
+            qplus, pplus, gradplus = next_tree.get_states(1)
+        qprime, gradprime = next_tree.get_sample()
+        logpprime, _ = f(qprime)
 
         # Use Metropolis-Hastings to decide whether or not to move to a
         # point from the half-tree we just generated.
@@ -111,7 +118,8 @@ def nuts(f, dt, q, logp, grad, max_depth=10, warnings=True):
             if warnings:
                 print('The max depth of {:d} has been reached.'.format(max_depth))
 
-    alpha_ave = alpha / nalpha
+    # TODO: take care of the accetance probability related quantities later.
+    alpha_ave = 1
 
     return q, logp, grad, alpha_ave, nfevals_total
 
@@ -129,40 +137,15 @@ def stop_criterion(qminus, qplus, pminus, pplus):
     return (np.dot(dq, pminus) < 0) or (np.dot(dq, pplus) < 0)
 
 
-def build_tree_wrapper(q, p, grad, logu, dir, depth, dt, f, joint0):
-    """The main recursion."""
-
-    nfevals_total = 0
-    tree = build_tree(f, dt, q, p, grad, depth, dir, logu)
-
-    # TODO: take care of unstable trajectories later
-
-    qminus, pminus, gradminus = tree.get_states(-1)
-    qplus, pplus, gradplus = tree.get_states(1)
-    qprime, _, gradprime = tree.get_states(0)
-    stopprime = tree.u_turn_detected
-    logpprime, _ = f(qprime)
-    nprime = tree.n_acceptable_states
-
-    # TODO: take care of the acceptance probability related quantities later.
-
-    alphaprime = 1.
-    nalphaprime = 2 ** depth
-
-    return qminus, pminus, gradminus, qplus, pplus, gradplus, \
-           qprime, gradprime, logpprime, nprime, stopprime, \
-           alphaprime, nalphaprime, nfevals_total
-
-
-def build_tree(f, dt, q, p, grad, height, direction, logu):
+def build_next_tree(f, dt, q, p, grad, height, direction, logu):
 
     if height == 0:
         return build_singleton_tree(f, dt, q, p, grad, direction, logu)
 
-    subtree = build_tree(f, dt, q, p, grad, height - 1, direction, logu)
+    subtree = build_next_tree(f, dt, q, p, grad, height - 1, direction, logu)
     if not (subtree.u_turn_detected or subtree.trajectory_is_unstable):
         q, p, grad = subtree.get_states(direction)
-        next_subtree = build_tree(f, dt, q, p, grad, height - 1, direction, logu)
+        next_subtree = build_next_tree(f, dt, q, p, grad, height - 1, direction, logu)
         subtree.merge_next_tree(next_subtree, direction)
 
     return subtree
