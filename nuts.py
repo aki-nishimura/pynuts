@@ -111,32 +111,32 @@ class TrajectoryTree():
         self.n_acceptable_states = int(joint_logp0 > joint_logp_threshold)
 
     def double_trajectory(self, height, direction):
-        next_tree = self.build_next_tree(
-            *self.get_states(direction), height, direction
+        next_tree = self._build_next_tree(
+            *self._get_states(direction), height, direction
         )
         trajectory_terminated_within_next_tree \
             = next_tree.u_turn_detected or next_tree.trajectory_is_unstable
         if not trajectory_terminated_within_next_tree:
-            self.merge_next_tree(next_tree, direction, sampling_method='swap')
+            self._merge_next_tree(next_tree, direction, sampling_method='swap')
         return trajectory_terminated_within_next_tree
 
-    def build_next_tree(self, q, p, grad, height, direction):
+    def _build_next_tree(self, q, p, grad, height, direction):
 
         if height == 0:
-            return self.build_next_singleton_tree(q, p, grad, direction)
+            return self._build_next_singleton_tree(q, p, grad, direction)
 
-        subtree = self.build_next_tree(q, p, grad, height - 1, direction)
+        subtree = self._build_next_tree(q, p, grad, height - 1, direction)
         trajectory_terminated_within_subtree \
             = subtree.u_turn_detected or subtree.trajectory_is_unstable
         if not trajectory_terminated_within_subtree:
-            next_subtree = self.build_next_tree(
-                *subtree.get_states(direction), height - 1, direction
+            next_subtree = self._build_next_tree(
+                *subtree._get_states(direction), height - 1, direction
             )
-            subtree.merge_next_tree(next_subtree, direction, sampling_method='uniform')
+            subtree._merge_next_tree(next_subtree, direction, sampling_method='uniform')
 
         return subtree
 
-    def build_next_singleton_tree(self, q, p, grad, direction):
+    def _build_next_singleton_tree(self, q, p, grad, direction):
         q, p, logp, grad = integrator(self.f, direction * self.dt, q, p, grad)
         if math.isinf(logp):
             joint_logp = - float('inf')
@@ -146,19 +146,19 @@ class TrajectoryTree():
             self.f, self.dt, q, p, logp, grad, joint_logp, self.joint_logp_threshold
         )
 
-    def merge_next_tree(self, next_tree, direction, sampling_method):
+    def _merge_next_tree(self, next_tree, direction, sampling_method):
 
         self.u_turn_detected = self.u_turn_detected or next_tree.u_turn_detected
         trajectory_terminated_within_next_tree \
             = next_tree.u_turn_detected or next_tree.trajectory_is_unstable
         if not trajectory_terminated_within_next_tree:
-            self.update_sample(next_tree, sampling_method)
+            self._update_sample(next_tree, sampling_method)
             self.n_acceptable_states += next_tree.n_acceptable_states
-            self.set_states(*next_tree.get_states(direction), direction)
+            self._set_states(*next_tree._get_states(direction), direction)
             self.u_turn_detected \
-                = self.u_turn_detected or self.check_u_turn_at_front_and_rear_ends()
+                = self.u_turn_detected or self._check_u_turn_at_front_and_rear_ends()
 
-    def update_sample(self, next_tree, method):
+    def _update_sample(self, next_tree, method):
         """
         Parameters
         ----------
@@ -174,19 +174,19 @@ class TrajectoryTree():
         if np.random.uniform() < sampling_weight_on_next_tree:
             self.sample = next_tree.sample
 
-    def check_u_turn_at_front_and_rear_ends(self):
-        q_front, p_front, _ = self.get_states(1)
-        q_rear, p_rear, _ = self.get_states(-1)
+    def _check_u_turn_at_front_and_rear_ends(self):
+        q_front, p_front, _ = self._get_states(1)
+        q_rear, p_rear, _ = self._get_states(-1)
         dq = q_front - q_rear
         return (np.dot(dq, p_front) < 0) or (np.dot(dq, p_rear) < 0)
 
-    def set_states(self, q, p, grad, direction):
+    def _set_states(self, q, p, grad, direction):
         if direction > 0:
             self.front_state = (q, p, grad)
         else:
             self.rear_state = (q, p, grad)
 
-    def get_states(self, direction):
+    def _get_states(self, direction):
         if direction > 0:
             return self.front_state
         else:
