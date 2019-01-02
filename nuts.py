@@ -71,38 +71,18 @@ def nuts(f, dt, q, logp, grad, max_depth=10, warnings=True):
 
     # initialize the tree
     tree = TrajectoryTree(q, p, logp, grad, joint, logu)
-    qminus = q
-    qplus = q
-    pminus = p
-    pplus = p
-    gradminus = grad
-    gradplus = grad
 
     nfevals_total = 0
     depth = 0
-    n = 1  # Initially the only valid point is the initial point.
     stop = False
     while not stop:
         # Choose a direction. -1 = backwards, 1 = forwards.
         dir = int(2 * (np.random.uniform() < 0.5) - 1)
 
         next_tree = build_next_tree(f, dt, *tree.get_states(dir), depth, dir, logu)
-        nprime = next_tree.n_acceptable_states
-        stopprime = next_tree.u_turn_detected or next_tree.trajectory_is_unstable
+        tree.merge_next_tree(next_tree, dir, sampling_method='swap')
 
-        if dir == -1:
-            qminus, pminus, gradminus = next_tree.get_states(-1)
-        else:
-            qplus, pplus, gradplus = next_tree.get_states(1)
-
-        if not stopprime:
-            tree.merge_next_tree(next_tree, dir, sampling_method='swap')
-            q, logp, grad = tree.get_sample()
-
-        # Update number of valid points we've seen.
-        n += nprime
-        # Decide if it's time to stop.
-        stop = stopprime or stop_criterion(qminus, qplus, pminus, pplus)
+        stop = tree.u_turn_detected or tree.trajectory_is_unstable
         # Increment depth.
         depth += 1
         if depth >= max_depth:
@@ -113,20 +93,8 @@ def nuts(f, dt, q, logp, grad, max_depth=10, warnings=True):
     # TODO: take care of the accetance probability related quantities later.
     alpha_ave = 1
 
+    q, logp, grad = tree.get_sample()
     return q, logp, grad, alpha_ave, nfevals_total
-
-
-def stop_criterion(qminus, qplus, pminus, pplus):
-    """ Check for the U-turn condition.
-    INPUTS
-    ------
-    qminus, qplus: ndarray[float, ndim=1]
-        under and above position
-    pminus, pplus: ndarray[float, ndim=1]
-        under and above momentum
-    """
-    dq = qplus - qminus
-    return (np.dot(dq, pminus) < 0) or (np.dot(dq, pplus) < 0)
 
 
 def build_next_tree(f, dt, q, p, grad, height, direction, logu):
