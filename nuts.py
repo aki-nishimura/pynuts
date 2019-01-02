@@ -79,8 +79,8 @@ def nuts(f, dt, q, logp, grad, max_depth=10, warnings=True):
         # Choose a direction. -1 = backwards, 1 = forwards.
         dir = int(2 * (np.random.uniform() < 0.5) - 1)
 
-        tree.double_trajectory(f, dt, depth, dir, logu)
-        stop = tree.u_turn_detected or tree.trajectory_is_unstable
+        doubling_rejected = tree.double_trajectory(f, dt, depth, dir, logu)
+        stop = (doubling_rejected or tree.u_turn_detected or tree.trajectory_is_unstable)
         # Increment depth.
         depth += 1
         if depth >= max_depth:
@@ -142,7 +142,11 @@ class TrajectoryTree():
         next_tree = self.build_next_tree(
             f, dt, *self.get_states(direction), height, direction, logu
         )
-        self.merge_next_tree(next_tree, direction, sampling_method='swap')
+        trajectory_terminated_within_subtree \
+            = next_tree.u_turn_detected or next_tree.trajectory_is_unstable
+        if not trajectory_terminated_within_subtree:
+            self.merge_next_tree(next_tree, direction, sampling_method='swap')
+        return trajectory_terminated_within_subtree
 
     def build_next_tree(self, f, dt, q, p, grad, height, direction, logu):
 
@@ -151,7 +155,9 @@ class TrajectoryTree():
 
         subtree = self.build_next_tree(
             f, dt, q, p, grad, height - 1, direction, logu)
-        if not (subtree.u_turn_detected or subtree.trajectory_is_unstable):
+        trajectory_terminated_within_subtree \
+            = subtree.u_turn_detected or subtree.trajectory_is_unstable
+        if not trajectory_terminated_within_subtree:
             q, p, grad = subtree.get_states(direction)
             next_subtree = self.build_next_tree(
                 f, dt, q, p, grad, height - 1, direction, logu
@@ -169,15 +175,16 @@ class TrajectoryTree():
         return TrajectoryTree(q, p, logp, grad, joint_logp, logu)
 
     def merge_next_tree(self, next_tree, direction, sampling_method):
-        self.set_states(*next_tree.get_states(direction), direction)
-        u_turn_detected_within_subtrees \
-            = self.u_turn_detected or next_tree.u_turn_detected
-        self.u_turn_detected = (
-            self.check_u_turn_at_front_and_rear_ends()
-            or u_turn_detected_within_subtrees
-        )
-        self.update_sample(next_tree, sampling_method)
-        self.n_acceptable_states += next_tree.n_acceptable_states
+
+        self.u_turn_detected = self.u_turn_detected or next_tree.u_turn_detected
+        trajectory_terminated_within_next_tree \
+            = next_tree.u_turn_detected or next_tree.trajectory_is_unstable
+        if not trajectory_terminated_within_next_tree:
+            self.update_sample(next_tree, sampling_method)
+            self.n_acceptable_states += next_tree.n_acceptable_states
+            self.set_states(*next_tree.get_states(direction), direction)
+            self.u_turn_detected \
+                = self.u_turn_detected or self.check_u_turn_at_front_and_rear_ends()
 
     def check_u_turn_at_front_and_rear_ends(self):
         q_front, p_front, _ = self.get_states(1)
@@ -191,9 +198,6 @@ class TrajectoryTree():
         ----------
         method: {'uniform', 'swap'}
         """
-        if next_tree.u_turn_detected or next_tree.trajectory_is_unstable:
-            return
-
         if method == 'uniform':
             n_total = self.n_acceptable_states + next_tree.n_acceptable_states
             sampling_weight_on_next_tree \
