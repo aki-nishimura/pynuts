@@ -218,6 +218,10 @@ class TrajectoryTree():
         ----------
         method: {'uniform', 'swap'}
         """
+        if next_tree.u_turn_detected or next_tree.trajectory_is_unstable:
+            np.random.uniform()
+            return
+
         if method == 'uniform':
             n_total = self.n_acceptable_states + next_tree.n_acceptable_states
             sampling_weight_on_next_tree \
