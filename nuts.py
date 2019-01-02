@@ -88,7 +88,7 @@ def generate_next_state(f, dt, q, logp, grad, max_height=10):
     # TODO: take care of the accetance probability related quantities later.
     alpha_ave = 1
 
-    q, logp, grad = tree.get_sample()
+    q, logp, grad = tree.sample
     return q, logp, grad, alpha_ave
 
 
@@ -99,41 +99,25 @@ class TrajectoryTree():
     """
 
     def __init__(self, q0, p0, logp0, grad0, joint_logp0, joint_logp_threshold):
-        # Store the frontmost and rearmost states of the trajectory as well as
-        # one inner state sampled uniformly from the acceptable states.
-        n_states_to_store = 3
-        self.positions = n_states_to_store * [q0]
-        self.momentums = n_states_to_store * [p0]
-        self.momentums[self.get_index(direction=0)] = None
-            # No use for the momentum except at the front and rear of the trajectory.
-        self.gradients = n_states_to_store * [grad0]
-        self.logp_at_sampling_location = logp0
+
+        self.front_state = (q0, p0, grad0)
+        self.rear_state = (q0, p0, grad0)
+        self.sample = (q0, logp0, grad0)
         self.u_turn_detected = False
         self.trajectory_is_unstable = False
         self.n_acceptable_states = int(joint_logp0 > joint_logp_threshold)
 
     def set_states(self, q, p, grad, direction):
-        index = self.get_index(direction)
-        self.positions[index] = q
-        self.momentums[index] = p
-        self.gradients[index] = grad
+        if direction > 0:
+            self.front_state = (q, p, grad)
+        else:
+            self.rear_state = (q, p, grad)
 
     def get_states(self, direction):
-        index = self.get_index(direction)
-        return self.positions[index], self.momentums[index], self.gradients[index]
-
-    def set_sample(self, q, logp, grad):
-        index = self.get_index(direction=0)
-        self.positions[index] = q
-        self.gradients[index] = grad
-        self.logp_at_sampling_location = logp
-
-    def get_sample(self):
-        index = self.get_index(direction=0)
-        return self.positions[index], self.logp_at_sampling_location, self.gradients[index]
-
-    def get_index(self, direction):
-        return 1 + direction
+        if direction > 0:
+            return self.front_state
+        else:
+            return self.rear_state
 
     def double_trajectory(self, f, dt, height, direction, logu):
         next_tree = self.build_next_tree(
@@ -203,7 +187,7 @@ class TrajectoryTree():
             sampling_weight_on_next_tree \
                 = next_tree.n_acceptable_states / self.n_acceptable_states
         if np.random.uniform() < sampling_weight_on_next_tree:
-            self.set_sample(*next_tree.get_sample())
+            self.sample = next_tree.sample
 
 
 # TODO: replace the following functions with 'generate_samples' function above.
