@@ -114,10 +114,10 @@ def build_next_tree(f, dt, q, p, grad, height, direction, logu):
 def build_singleton_tree(f, dt, q, p, grad, direction, logu):
     q, p, logp, grad = integrator(f, direction * dt, q, p, grad)
     if math.isinf(logp):
-        log_joint = - float('inf')
+        joint_logp = - float('inf')
     else:
-        log_joint = - compute_hamiltonian(logp, p)
-    return TrajectoryTree(q, p, logp, grad, log_joint, logu)
+        joint_logp = - compute_hamiltonian(logp, p)
+    return TrajectoryTree(q, p, logp, grad, joint_logp, logu)
 
 
 class TrajectoryTree():
@@ -126,7 +126,7 @@ class TrajectoryTree():
     trajcetory endowed with a binary tree structure.
     """
 
-    def __init__(self, q0, p0, logp0, grad0, log_joint0, log_joint_threshold):
+    def __init__(self, q0, p0, logp0, grad0, joint_logp0, joint_logp_threshold):
         # Store the frontmost and rearmost states of the trajectory as well as
         # one inner state sampled uniformly from the acceptable states.
         n_states_to_store = 3
@@ -138,7 +138,7 @@ class TrajectoryTree():
         self.logp_at_sampling_location = logp0
         self.u_turn_detected = False
         self.trajectory_is_unstable = False
-        self.n_acceptable_states = int(log_joint0 > log_joint_threshold)
+        self.n_acceptable_states = int(joint_logp0 > joint_logp_threshold)
 
     def set_states(self, q, p, grad, direction):
         index = self.get_index(direction)
