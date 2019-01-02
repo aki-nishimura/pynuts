@@ -98,17 +98,17 @@ class TrajectoryTree():
     trajcetory endowed with a binary tree structure.
     """
 
-    def __init__(self, f, dt, q0, p0, logp0, grad0, joint_logp0, joint_logp_threshold):
+    def __init__(self, f, dt, q, p, logp, grad, joint_logp, joint_logp_threshold):
 
         self.f = f
         self.dt = dt
         self.joint_logp_threshold = joint_logp_threshold
-        self.front_state = (q0, p0, grad0)
-        self.rear_state = (q0, p0, grad0)
-        self.sample = (q0, logp0, grad0)
+        self.front_state = (q, p, grad)
+        self.rear_state = (q, p, grad)
+        self.sample = (q, logp, grad)
         self.u_turn_detected = False
         self.trajectory_is_unstable = False
-        self.n_acceptable_states = int(joint_logp0 > joint_logp_threshold)
+        self.n_acceptable_states = int(joint_logp > joint_logp_threshold)
 
     def double_trajectory(self, height, direction):
         next_tree = self._build_next_tree(
