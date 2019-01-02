@@ -63,7 +63,7 @@ def generate_next_state(f, dt, q, logp, grad, max_height=10):
     logp_joint_threshold = logp_joint - np.random.exponential()
         # Slicing variable in the log-scale.
 
-    tree = TrajectoryTree(q, p, logp, grad, logp_joint, logp_joint_threshold)
+    tree = TrajectoryTree(f, dt, q, p, logp, grad, logp_joint, logp_joint_threshold)
     height = 0 # Referred to as 'depth' in the original paper, but arguably the
                # trajectory tree is built 'upward' on top of the existing ones.
     trajectory_terminated = False
@@ -71,7 +71,7 @@ def generate_next_state(f, dt, q, logp, grad, max_height=10):
 
         direction = int(2 * (np.random.uniform() < 0.5) - 1)
         trajectory_terminated_within_next_tree \
-            = tree.double_trajectory(f, dt, height, direction, logp_joint_threshold)
+            = tree.double_trajectory(height, direction)
         height += 1
         max_height_reached = (height >= max_height)
         if max_height_reached:
@@ -98,8 +98,11 @@ class TrajectoryTree():
     trajcetory endowed with a binary tree structure.
     """
 
-    def __init__(self, q0, p0, logp0, grad0, joint_logp0, joint_logp_threshold):
+    def __init__(self, f, dt, q0, p0, logp0, grad0, joint_logp0, joint_logp_threshold):
 
+        self.f = f
+        self.dt = dt
+        self.joint_logp_threshold = joint_logp_threshold
         self.front_state = (q0, p0, grad0)
         self.rear_state = (q0, p0, grad0)
         self.sample = (q0, logp0, grad0)
@@ -119,9 +122,9 @@ class TrajectoryTree():
         else:
             return self.rear_state
 
-    def double_trajectory(self, f, dt, height, direction, logu):
+    def double_trajectory(self, height, direction):
         next_tree = self.build_next_tree(
-            f, dt, *self.get_states(direction), height, direction, logu
+            *self.get_states(direction), height, direction
         )
         trajectory_terminated_within_next_tree \
             = next_tree.u_turn_detected or next_tree.trajectory_is_unstable
@@ -129,31 +132,31 @@ class TrajectoryTree():
             self.merge_next_tree(next_tree, direction, sampling_method='swap')
         return trajectory_terminated_within_next_tree
 
-    def build_next_tree(self, f, dt, q, p, grad, height, direction, logu):
+    def build_next_tree(self, q, p, grad, height, direction):
 
         if height == 0:
-            return self.build_singleton_tree(f, dt, q, p, grad, direction, logu)
+            return self.build_next_singleton_tree(q, p, grad, direction)
 
-        subtree = self.build_next_tree(
-            f, dt, q, p, grad, height - 1, direction, logu)
+        subtree = self.build_next_tree(q, p, grad, height - 1, direction)
         trajectory_terminated_within_subtree \
             = subtree.u_turn_detected or subtree.trajectory_is_unstable
         if not trajectory_terminated_within_subtree:
-            q, p, grad = subtree.get_states(direction)
             next_subtree = self.build_next_tree(
-                f, dt, q, p, grad, height - 1, direction, logu
+                *subtree.get_states(direction), height - 1, direction
             )
             subtree.merge_next_tree(next_subtree, direction, sampling_method='uniform')
 
         return subtree
 
-    def build_singleton_tree(self, f, dt, q, p, grad, direction, logu):
-        q, p, logp, grad = integrator(f, direction * dt, q, p, grad)
+    def build_next_singleton_tree(self, q, p, grad, direction):
+        q, p, logp, grad = integrator(self.f, direction * self.dt, q, p, grad)
         if math.isinf(logp):
             joint_logp = - float('inf')
         else:
             joint_logp = - compute_hamiltonian(logp, p)
-        return TrajectoryTree(q, p, logp, grad, joint_logp, logu)
+        return TrajectoryTree(
+            self.f, self.dt, q, p, logp, grad, joint_logp, self.joint_logp_threshold
+        )
 
     def merge_next_tree(self, next_tree, direction, sampling_method):
 
