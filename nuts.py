@@ -70,6 +70,7 @@ def nuts(f, dt, q, logp, grad, max_depth=10, warnings=True):
     logu = joint - np.random.exponential()
 
     # initialize the tree
+    tree = TrajectoryTree(q, p, logp, grad, joint, logu)
     qminus = q
     qplus = q
     pminus = p
@@ -85,12 +86,7 @@ def nuts(f, dt, q, logp, grad, max_depth=10, warnings=True):
         # Choose a direction. -1 = backwards, 1 = forwards.
         dir = int(2 * (np.random.uniform() < 0.5) - 1)
 
-        if dir == -1:
-            init_state = [qminus, pminus, gradminus]
-        else:
-            init_state = [qplus, pplus, gradplus]
-
-        next_tree = build_next_tree(f, dt, *init_state, depth, dir, logu)
+        next_tree = build_next_tree(f, dt, *tree.get_states(dir), depth, dir, logu)
         nprime = next_tree.n_acceptable_states
         stopprime = next_tree.u_turn_detected or next_tree.trajectory_is_unstable
 
@@ -98,14 +94,11 @@ def nuts(f, dt, q, logp, grad, max_depth=10, warnings=True):
             qminus, pminus, gradminus = next_tree.get_states(-1)
         else:
             qplus, pplus, gradplus = next_tree.get_states(1)
-        qprime, logpprime, gradprime = next_tree.get_sample()
 
-        # Use Metropolis-Hastings to decide whether or not to move to a
-        # point from the half-tree we just generated.
-        if (not stopprime) and (np.random.uniform() < nprime / n):
-            q = qprime
-            logp = logpprime
-            grad = gradprime
+        if not stopprime:
+            tree.merge_next_tree(next_tree, dir, sampling_method='swap')
+            q, logp, grad = tree.get_sample()
+
         # Update number of valid points we've seen.
         n += nprime
         # Decide if it's time to stop.
@@ -145,7 +138,7 @@ def build_next_tree(f, dt, q, p, grad, height, direction, logu):
     if not (subtree.u_turn_detected or subtree.trajectory_is_unstable):
         q, p, grad = subtree.get_states(direction)
         next_subtree = build_next_tree(f, dt, q, p, grad, height - 1, direction, logu)
-        subtree.merge_next_tree(next_subtree, direction)
+        subtree.merge_next_tree(next_subtree, direction, sampling_method='uniform')
 
     return subtree
 
@@ -202,7 +195,7 @@ class TrajectoryTree():
     def get_index(self, direction):
         return 1 + direction
 
-    def merge_next_tree(self, next_tree, direction):
+    def merge_next_tree(self, next_tree, direction, sampling_method):
         self.set_states(*next_tree.get_states(direction), direction)
         u_turn_detected_within_subtrees \
             = self.u_turn_detected or next_tree.u_turn_detected
@@ -210,7 +203,7 @@ class TrajectoryTree():
             self.check_u_turn_at_front_and_rear_ends()
             or u_turn_detected_within_subtrees
         )
-        self.update_sample(next_tree)
+        self.update_sample(next_tree, sampling_method)
         self.n_acceptable_states += next_tree.n_acceptable_states
 
     def check_u_turn_at_front_and_rear_ends(self):
@@ -219,10 +212,19 @@ class TrajectoryTree():
         dq = q_front - q_rear
         return (np.dot(dq, p_front) < 0) or (np.dot(dq, p_rear) < 0)
 
-    def update_sample(self, next_tree):
-        n_total = self.n_acceptable_states + next_tree.n_acceptable_states
-        sampling_weight_on_next_tree \
-            = next_tree.n_acceptable_states / max(1, n_total)
+    def update_sample(self, next_tree, method):
+        """
+        Parameters
+        ----------
+        method: {'uniform', 'swap'}
+        """
+        if method == 'uniform':
+            n_total = self.n_acceptable_states + next_tree.n_acceptable_states
+            sampling_weight_on_next_tree \
+                = next_tree.n_acceptable_states / max(1, n_total)
+        elif method == 'swap':
+            sampling_weight_on_next_tree \
+                = next_tree.n_acceptable_states / self.n_acceptable_states
         if np.random.uniform() < sampling_weight_on_next_tree:
             self.set_sample(*next_tree.get_sample())
 
