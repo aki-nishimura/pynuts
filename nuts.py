@@ -79,9 +79,7 @@ def nuts(f, dt, q, logp, grad, max_depth=10, warnings=True):
         # Choose a direction. -1 = backwards, 1 = forwards.
         dir = int(2 * (np.random.uniform() < 0.5) - 1)
 
-        next_tree = build_next_tree(f, dt, *tree.get_states(dir), depth, dir, logu)
-        tree.merge_next_tree(next_tree, dir, sampling_method='swap')
-
+        tree.double_trajectory(f, dt, depth, dir, logu)
         stop = tree.u_turn_detected or tree.trajectory_is_unstable
         # Increment depth.
         depth += 1
@@ -95,29 +93,6 @@ def nuts(f, dt, q, logp, grad, max_depth=10, warnings=True):
 
     q, logp, grad = tree.get_sample()
     return q, logp, grad, alpha_ave, nfevals_total
-
-
-def build_next_tree(f, dt, q, p, grad, height, direction, logu):
-
-    if height == 0:
-        return build_singleton_tree(f, dt, q, p, grad, direction, logu)
-
-    subtree = build_next_tree(f, dt, q, p, grad, height - 1, direction, logu)
-    if not (subtree.u_turn_detected or subtree.trajectory_is_unstable):
-        q, p, grad = subtree.get_states(direction)
-        next_subtree = build_next_tree(f, dt, q, p, grad, height - 1, direction, logu)
-        subtree.merge_next_tree(next_subtree, direction, sampling_method='uniform')
-
-    return subtree
-
-
-def build_singleton_tree(f, dt, q, p, grad, direction, logu):
-    q, p, logp, grad = integrator(f, direction * dt, q, p, grad)
-    if math.isinf(logp):
-        joint_logp = - float('inf')
-    else:
-        joint_logp = - compute_hamiltonian(logp, p)
-    return TrajectoryTree(q, p, logp, grad, joint_logp, logu)
 
 
 class TrajectoryTree():
@@ -162,6 +137,36 @@ class TrajectoryTree():
 
     def get_index(self, direction):
         return 1 + direction
+
+    def double_trajectory(self, f, dt, height, direction, logu):
+        next_tree = self.build_next_tree(
+            f, dt, *self.get_states(direction), height, direction, logu
+        )
+        self.merge_next_tree(next_tree, direction, sampling_method='swap')
+
+    def build_next_tree(self, f, dt, q, p, grad, height, direction, logu):
+
+        if height == 0:
+            return self.build_singleton_tree(f, dt, q, p, grad, direction, logu)
+
+        subtree = self.build_next_tree(
+            f, dt, q, p, grad, height - 1, direction, logu)
+        if not (subtree.u_turn_detected or subtree.trajectory_is_unstable):
+            q, p, grad = subtree.get_states(direction)
+            next_subtree = self.build_next_tree(
+                f, dt, q, p, grad, height - 1, direction, logu
+            )
+            subtree.merge_next_tree(next_subtree, direction, sampling_method='uniform')
+
+        return subtree
+
+    def build_singleton_tree(self, f, dt, q, p, grad, direction, logu):
+        q, p, logp, grad = integrator(f, direction * dt, q, p, grad)
+        if math.isinf(logp):
+            joint_logp = - float('inf')
+        else:
+            joint_logp = - compute_hamiltonian(logp, p)
+        return TrajectoryTree(q, p, logp, grad, joint_logp, logu)
 
     def merge_next_tree(self, next_tree, direction, sampling_method):
         self.set_states(*next_tree.get_states(direction), direction)
