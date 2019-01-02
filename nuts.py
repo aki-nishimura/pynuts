@@ -70,7 +70,7 @@ def generate_next_state(f, dt, q, logp, grad, max_height=10):
     while not trajectory_terminated:
 
         direction = int(2 * (np.random.uniform() < 0.5) - 1)
-        trajectory_terminated_within_next_tree \
+        doubling_rejected \
             = tree.double_trajectory(height, direction)
         height += 1
         max_height_reached = (height >= max_height)
@@ -80,7 +80,7 @@ def generate_next_state(f, dt, q, logp, grad, max_height=10):
             )
         trajectory_terminated = (
             max_height_reached
-            or trajectory_terminated_within_next_tree
+            or doubling_rejected
             or tree.u_turn_detected
             or tree.trajectory_is_unstable
         )
@@ -114,11 +114,12 @@ class TrajectoryTree():
         next_tree = self._build_next_tree(
             *self._get_states(direction), height, direction
         )
-        trajectory_terminated_within_next_tree \
+        doubling_rejected \
             = next_tree.u_turn_detected or next_tree.trajectory_is_unstable
-        if not trajectory_terminated_within_next_tree:
+            # No transition if the trajectory is terminated within the next tree.
+        if not doubling_rejected:
             self._merge_next_tree(next_tree, direction, sampling_method='swap')
-        return trajectory_terminated_within_next_tree
+        return doubling_rejected
 
     def _build_next_tree(self, q, p, grad, height, direction):
 
