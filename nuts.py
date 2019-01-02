@@ -73,17 +73,18 @@ def generate_next_state(f, dt, q, logp, grad, max_height=10):
         doubling_rejected \
             = tree.double_trajectory(height, direction)
         height += 1
-        max_height_reached = (height >= max_height)
-        if max_height_reached:
-            warn_message_only(
-                'The trajectory tree readched the max height of {:d}.'.format(max_height)
-            )
+
         trajectory_terminated = (
-            max_height_reached
-            or doubling_rejected
+            doubling_rejected
             or tree.u_turn_detected
             or tree.trajectory_is_unstable
         )
+        if height >= max_height and (not trajectory_terminated):
+            warn_message_only(
+                'The trajectory tree reached the max height of {:d} before '
+                'meeting the U-turn condition.'.format(max_height)
+            )
+            trajectory_terminated = True
 
     # TODO: take care of the accetance probability related quantities later.
     alpha_ave = 1
