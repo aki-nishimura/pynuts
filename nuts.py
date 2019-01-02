@@ -2,12 +2,13 @@ import numpy as np
 import math
 import time
 from .dynamics import HamiltonianDynamics
+from .util import warn_message_only
 
 
 dynamics = HamiltonianDynamics()
 integrator = dynamics.integrate
 compute_hamiltonian = dynamics.compute_hamiltonian
-random_momentum = dynamics.draw_momentum
+draw_momentum = dynamics.draw_momentum
 
 
 def generate_samples(
@@ -37,8 +38,8 @@ def generate_samples(
     use_averaged_stepsize = False
     for i in range(n_sample + n_burnin):
         dt = np.random.uniform(dt_range[0], dt_range[1])
-        q, logp, grad, alpha_ave, nfevals_total \
-            = nuts(f, dt, q, logp, grad)
+        q, logp, grad, alpha_ave \
+            = generate_next_state(f, dt, q, logp, grad)
         if i < n_burnin and adapt_stepsize:
             pass
             # TODO: adapt stepsize.
@@ -55,44 +56,40 @@ def generate_samples(
     return samples, logp_samples, accept_prob, time_elapsed
 
 
-def nuts(f, dt, q, logp, grad, max_depth=10, warnings=True):
+def generate_next_state(f, dt, q, logp, grad, max_height=10):
 
-    d = len(q)
+    p = draw_momentum(len(q))
+    logp_joint = - compute_hamiltonian(logp, p)
+    logp_joint_threshold = logp_joint - np.random.exponential()
+        # Slicing variable in the log-scale.
 
-    # Resample momenta.
-    p = random_momentum(d)
+    tree = TrajectoryTree(q, p, logp, grad, logp_joint, logp_joint_threshold)
+    height = 0 # Referred to as 'depth' in the original paper, but arguably the
+               # trajectory tree is built 'upward' on top of the existing ones.
+    trajectory_terminated = False
+    while not trajectory_terminated:
 
-    # joint lnp of q and momentum r
-    joint = - compute_hamiltonian(logp, p)
-
-    # Resample u ~ uniform([0, exp(joint)]).
-    # Equivalent to (log(u) - joint) ~ exponential(1).
-    logu = joint - np.random.exponential()
-
-    # initialize the tree
-    tree = TrajectoryTree(q, p, logp, grad, joint, logu)
-
-    nfevals_total = 0
-    depth = 0
-    stop = False
-    while not stop:
-        # Choose a direction. -1 = backwards, 1 = forwards.
-        dir = int(2 * (np.random.uniform() < 0.5) - 1)
-
-        doubling_rejected = tree.double_trajectory(f, dt, depth, dir, logu)
-        stop = (doubling_rejected or tree.u_turn_detected or tree.trajectory_is_unstable)
-        # Increment depth.
-        depth += 1
-        if depth >= max_depth:
-            stop = True
-            if warnings:
-                print('The max depth of {:d} has been reached.'.format(max_depth))
+        direction = int(2 * (np.random.uniform() < 0.5) - 1)
+        trajectory_terminated_within_next_tree \
+            = tree.double_trajectory(f, dt, height, direction, logp_joint_threshold)
+        height += 1
+        max_height_reached = (height >= max_height)
+        if max_height_reached:
+            warn_message_only(
+                'The trajectory tree readched the max height of {:d}.'.format(max_height)
+            )
+        trajectory_terminated = (
+            max_height_reached
+            or trajectory_terminated_within_next_tree
+            or tree.u_turn_detected
+            or tree.trajectory_is_unstable
+        )
 
     # TODO: take care of the accetance probability related quantities later.
     alpha_ave = 1
 
     q, logp, grad = tree.get_sample()
-    return q, logp, grad, alpha_ave, nfevals_total
+    return q, logp, grad, alpha_ave
 
 
 class TrajectoryTree():
@@ -142,11 +139,11 @@ class TrajectoryTree():
         next_tree = self.build_next_tree(
             f, dt, *self.get_states(direction), height, direction, logu
         )
-        trajectory_terminated_within_subtree \
+        trajectory_terminated_within_next_tree \
             = next_tree.u_turn_detected or next_tree.trajectory_is_unstable
-        if not trajectory_terminated_within_subtree:
+        if not trajectory_terminated_within_next_tree:
             self.merge_next_tree(next_tree, direction, sampling_method='swap')
-        return trajectory_terminated_within_subtree
+        return trajectory_terminated_within_next_tree
 
     def build_next_tree(self, f, dt, q, p, grad, height, direction, logu):
 
@@ -260,7 +257,7 @@ def nuts_adap(f, n_sample, n_warmup, q0, delta=0.8, seed=None, dt=None, n_update
     tic = time.process_time()
     logp, grad = f(q)
     for i in range(n_sample):
-        q, logp, grad, alpha_ave, nfevals = nuts(f, dt, q, logp, grad)
+        q, logp, grad, alpha_ave, nfevals = generate_next_state(f, dt, q, logp, grad)
         nfevals_total += nfevals
         samples[i,:] = q
         logp_samples[i] = logp
@@ -300,7 +297,7 @@ def dualAveraging(f, q0, delta=.8, n_warmup=500):
     q = q0
     for i in range(1, n_warmup + 1):
         q, logp, grad, ave_alpha, _ = \
-                nuts(f, dt, q, logp, grad)
+                generate_next_state(f, dt, q, logp, grad)
         eta = 1 / (i + t0)
         Hbar = (1 - eta) * Hbar + eta * (delta - ave_alpha)
         dt = math.exp(mu - math.sqrt(i) / gamma * Hbar)
