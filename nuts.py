@@ -110,18 +110,6 @@ class TrajectoryTree():
         self.trajectory_is_unstable = False
         self.n_acceptable_states = int(joint_logp0 > joint_logp_threshold)
 
-    def set_states(self, q, p, grad, direction):
-        if direction > 0:
-            self.front_state = (q, p, grad)
-        else:
-            self.rear_state = (q, p, grad)
-
-    def get_states(self, direction):
-        if direction > 0:
-            return self.front_state
-        else:
-            return self.rear_state
-
     def double_trajectory(self, height, direction):
         next_tree = self.build_next_tree(
             *self.get_states(direction), height, direction
@@ -170,12 +158,6 @@ class TrajectoryTree():
             self.u_turn_detected \
                 = self.u_turn_detected or self.check_u_turn_at_front_and_rear_ends()
 
-    def check_u_turn_at_front_and_rear_ends(self):
-        q_front, p_front, _ = self.get_states(1)
-        q_rear, p_rear, _ = self.get_states(-1)
-        dq = q_front - q_rear
-        return (np.dot(dq, p_front) < 0) or (np.dot(dq, p_rear) < 0)
-
     def update_sample(self, next_tree, method):
         """
         Parameters
@@ -191,6 +173,24 @@ class TrajectoryTree():
                 = next_tree.n_acceptable_states / self.n_acceptable_states
         if np.random.uniform() < sampling_weight_on_next_tree:
             self.sample = next_tree.sample
+
+    def check_u_turn_at_front_and_rear_ends(self):
+        q_front, p_front, _ = self.get_states(1)
+        q_rear, p_rear, _ = self.get_states(-1)
+        dq = q_front - q_rear
+        return (np.dot(dq, p_front) < 0) or (np.dot(dq, p_rear) < 0)
+
+    def set_states(self, q, p, grad, direction):
+        if direction > 0:
+            self.front_state = (q, p, grad)
+        else:
+            self.rear_state = (q, p, grad)
+
+    def get_states(self, direction):
+        if direction > 0:
+            return self.front_state
+        else:
+            return self.rear_state
 
 
 # TODO: replace the following functions with 'generate_samples' function above.
