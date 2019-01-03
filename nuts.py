@@ -108,8 +108,14 @@ class TrajectoryTree():
         self.rear_state = (q, p, grad)
         self.sample = (q, logp, grad)
         self.u_turn_detected = False
-        self.trajectory_is_unstable = False
+        self.min_hamiltonian = - joint_logp
+        self.max_hamiltonian = - joint_logp
         self.n_acceptable_states = int(joint_logp > joint_logp_threshold)
+
+    @property
+    def trajectory_is_unstable(self):
+        hamiltonian_error_tol = 100
+        return self.max_hamiltonian - self.min_hamiltonian > hamiltonian_error_tol
 
     def double_trajectory(self, height, direction):
         next_tree = self._build_next_tree(
@@ -151,6 +157,8 @@ class TrajectoryTree():
     def _merge_next_tree(self, next_tree, direction, sampling_method):
 
         self.u_turn_detected = self.u_turn_detected or next_tree.u_turn_detected
+        self.min_hamiltonian = min(self.min_hamiltonian, next_tree.min_hamiltonian)
+        self.max_hamiltonian = max(self.max_hamiltonian, next_tree.max_hamiltonian)
         trajectory_terminated_within_next_tree \
             = next_tree.u_turn_detected or next_tree.trajectory_is_unstable
         if not trajectory_terminated_within_next_tree:
