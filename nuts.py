@@ -109,6 +109,7 @@ class TrajectoryTree():
         self.min_hamiltonian = - joint_logp
         self.max_hamiltonian = - joint_logp
         self.n_acceptable_states = int(joint_logp > joint_logp_threshold)
+        self.n_integration_steps = 0
 
     @property
     def trajectory_is_unstable(self):
@@ -141,6 +142,7 @@ class TrajectoryTree():
 
     def _build_next_singleton_tree(self, q, p, grad, direction):
         q, p, logp, grad = integrator(self.f, direction * self.dt, q, p, grad)
+        self.n_integration_steps += 1
         if math.isinf(logp):
             joint_logp = - float('inf')
         else:
