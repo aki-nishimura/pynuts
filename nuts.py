@@ -38,7 +38,7 @@ def generate_samples(
     use_averaged_stepsize = False
     for i in range(n_sample + n_burnin):
         dt = np.random.uniform(dt_range[0], dt_range[1])
-        q, logp, grad, alpha_ave \
+        q, logp, grad, info \
             = generate_next_state(f, dt, q, logp, grad)
         if i < n_burnin and adapt_stepsize:
             pass
@@ -74,6 +74,7 @@ def generate_next_state(f, dt, q, logp, grad, max_height=10):
             = tree.double_trajectory(height, direction)
             # No transition to the next half of trajectory takes place if the
             # termination criteria are met within the next half tree.
+
         trajectory_terminated \
             = tree.u_turn_detected or tree.instability_detected
         height += 1
@@ -84,11 +85,17 @@ def generate_next_state(f, dt, q, logp, grad, max_height=10):
             )
             trajectory_terminated = True
 
-    # TODO: take care of the accetance probability related quantities later.
-    alpha_ave = 1
+    info = {
+        'ave_accept_prob': float('nan'),
+        'ave_hamiltonian_error': float('nan'),
+        'tree_height': height,
+        'u_turn_detected': tree.u_turn_detected,
+        'instability_detected': tree.instability_detected,
+        'last_doubling_rejected': doubling_rejected
+    }
 
     q, logp, grad = tree.sample
-    return q, logp, grad, alpha_ave
+    return q, logp, grad, info
 
 
 class TrajectoryTree():
