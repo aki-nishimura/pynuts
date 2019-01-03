@@ -75,7 +75,7 @@ def generate_next_state(f, dt, q, logp, grad, max_height=10):
             # No transition to the next half of trajectory takes place if the
             # termination criteria are met within the next half tree.
         trajectory_terminated \
-            = tree.u_turn_detected or tree.trajectory_is_unstable
+            = tree.u_turn_detected or tree.instability_detected
         height += 1
         if height >= max_height and (not trajectory_terminated):
             warn_message_only(
@@ -112,7 +112,7 @@ class TrajectoryTree():
         self.n_integration_steps = 0
 
     @property
-    def trajectory_is_unstable(self):
+    def instability_detected(self):
         hamiltonian_error_tol = 100
         return self.max_hamiltonian - self.min_hamiltonian > hamiltonian_error_tol
 
@@ -131,7 +131,7 @@ class TrajectoryTree():
 
         subtree = self._build_next_tree(q, p, grad, height - 1, direction)
         trajectory_terminated_within_subtree \
-            = subtree.u_turn_detected or subtree.trajectory_is_unstable
+            = subtree.u_turn_detected or subtree.instability_detected
         if not trajectory_terminated_within_subtree:
             next_subtree = self._build_next_tree(
                 *subtree._get_states(direction), height - 1, direction
@@ -157,7 +157,7 @@ class TrajectoryTree():
         self.min_hamiltonian = min(self.min_hamiltonian, next_tree.min_hamiltonian)
         self.max_hamiltonian = max(self.max_hamiltonian, next_tree.max_hamiltonian)
         trajectory_terminated_within_next_tree \
-            = next_tree.u_turn_detected or next_tree.trajectory_is_unstable
+            = next_tree.u_turn_detected or next_tree.instability_detected
 
         if not trajectory_terminated_within_next_tree:
             self._update_sample(next_tree, sampling_method)
