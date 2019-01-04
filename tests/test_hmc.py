@@ -23,7 +23,9 @@ def test_early_termination_symmetry():
 
     f, stability_limit, n_step, q0, p0 = setup_gaussian_target()
     dt = .99 * stability_limit
-    hamiltonian_fluctuation_range = 5.73633
+
+    hamiltonian_fluctuation_range \
+        = find_max_hamiltonian_fluctuation(f, dt, n_step, q0, p0)
 
     # Expect early termination.
     hamiltonian_tol = hamiltonian_fluctuation_range - .05
@@ -68,3 +70,12 @@ def simulate_forward_and_backward(f, dt, n_step, q0, p0, logp0, grad0,
     p = -p
 
     return q, p, logp, info, reverse_info
+
+
+def find_max_hamiltonian_fluctuation(f, dt, n_step, q0, p0):
+
+    logp0, grad0 = f(q0)
+    _, _, _, _, info = hmc.simulate_dynamics(
+        f, dt, n_step, q0, p0, logp0, grad0, hamiltonian_tol=float('inf')
+    )
+    return np.ptp(info['logp_trajectory'])
