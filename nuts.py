@@ -67,11 +67,11 @@ def generate_next_state(f, dt, q, logp, grad, max_height=10):
     height = 0 # Referred to as 'depth' in the original paper, but arguably the
                # trajectory tree is built 'upward' on top of the existing ones.
     trajectory_terminated = False
+    directions = 2 * (np.random.rand(max_height) < 0.5) - 1
     while not trajectory_terminated:
 
-        direction = int(2 * (np.random.uniform() < 0.5) - 1)
         doubling_rejected \
-            = tree.double_trajectory(height, direction)
+            = tree.double_trajectory(height, directions[height])
             # No transition to the next half of trajectory takes place if the
             # termination criteria are met within the next half tree.
 
