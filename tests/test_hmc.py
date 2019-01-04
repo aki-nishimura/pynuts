@@ -78,4 +78,4 @@ def find_max_hamiltonian_fluctuation(f, dt, n_step, q0, p0):
     _, _, _, _, info = hmc.simulate_dynamics(
         f, dt, n_step, q0, p0, logp0, grad0, hamiltonian_tol=float('inf')
     )
-    return np.ptp(info['logp_trajectory'])
+    return np.ptp(info['energy_trajectory'])
