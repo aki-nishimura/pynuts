@@ -64,10 +64,30 @@ def generate_next_state(f, dt, q, logp, grad, max_height=10):
         # Slicing variable in the log-scale.
 
     tree = TrajectoryTree(f, dt, q, p, logp, grad, logp_joint, logp_joint_threshold)
+    directions = 2 * (np.random.rand(max_height) < 0.5) - 1
+        # Pre-allocation of random directions is unnecessary, but makes the code easier to test.
+    tree, final_height, last_doubling_rejected \
+        = _grow_trajectory_recursively(tree, directions)
+
+    info = {
+        'ave_accept_prob': float('nan'),
+        'ave_hamiltonian_error': float('nan'),
+        'tree_height': final_height,
+        'u_turn_detected': tree.u_turn_detected,
+        'instability_detected': tree.instability_detected,
+        'last_doubling_rejected': last_doubling_rejected
+    }
+
+    q, logp, grad = tree.sample
+    return q, logp, grad, info
+
+
+def _grow_trajectory_recursively(tree, directions):
+
     height = 0 # Referred to as 'depth' in the original paper, but arguably the
                # trajectory tree is built 'upward' on top of the existing ones.
+    max_height = len(directions)
     trajectory_terminated = False
-    directions = 2 * (np.random.rand(max_height) < 0.5) - 1
     while not trajectory_terminated:
 
         doubling_rejected \
@@ -85,17 +105,7 @@ def generate_next_state(f, dt, q, logp, grad, max_height=10):
             )
             trajectory_terminated = True
 
-    info = {
-        'ave_accept_prob': float('nan'),
-        'ave_hamiltonian_error': float('nan'),
-        'tree_height': height,
-        'u_turn_detected': tree.u_turn_detected,
-        'instability_detected': tree.instability_detected,
-        'last_doubling_rejected': doubling_rejected
-    }
-
-    q, logp, grad = tree.sample
-    return q, logp, grad, info
+    return tree, height, doubling_rejected
 
 
 class TrajectoryTree():
