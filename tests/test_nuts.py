@@ -38,6 +38,44 @@ def test_tree_building_algorithm():
     assert has_same_front_and_rear_states(tree_1, tree_2)
 
 
+def test_u_turn():
+
+    bi_gauss = BivariateGaussian(rho=.0, sigma=np.array([1., .1]))
+    f = bi_gauss.compute_logp_and_gradient
+
+    # Set up the values for the tree trajectory so that the U-turn condition
+    # occurs exactly at the last tree doubling.
+    q_1 = np.array([-1., 0.])
+    p_1 = np.array([0.01, 0.])
+    logp_1, grad_1 = f(q_1)
+    tree_height = 10
+    dt = np.pi / 2 ** (tree_height - 1)
+        # Pick dt so that the trajectory is perioric with 2 ** tree_height steps-ish.
+    dt *= .9 # Make sure the U-turn occurs around, but not earlier than, 2 ** (tree_height - 1) steps.
+
+    # Doule tree forward till the U-turn almost occurs.
+    directions_1 = np.ones(tree_height - 1)
+    tree_1, final_height_1, last_doubling_rejected_1 \
+        = simulate_nuts_tree_dynamics(f, dt, q_1, p_1, logp_1, grad_1, directions_1)
+    assert last_doubling_rejected_1 == tree_1.u_turn_detected == False
+
+    # Add one final doubling backward: now the U-turn should occur.
+    directions_1 = np.concatenate((directions_1, [-1]))
+    tree_1, final_height_1, last_doubling_rejected_1 \
+        = simulate_nuts_tree_dynamics(f, dt, q_1, p_1, logp_1, grad_1, directions_1)
+
+    # Simulate the same tree from the frontmost node of the previous tree.
+    directions_2 = - np.ones(tree_height)
+    q_2, p_2, _ = tree_1.front_state
+    logp_2, grad_2 = f(q_2)
+    tree_2, final_height_2, last_doubling_rejected_2 \
+        = simulate_nuts_tree_dynamics(f, dt, q_2, p_2, logp_2, grad_2, directions_2)
+
+    assert has_same_front_and_rear_states(tree_1, tree_2)
+    assert final_height_1 == final_height_2 == tree_height
+    assert last_doubling_rejected_1 == last_doubling_rejected_2 == True
+
+
 def has_same_front_and_rear_states(tree_1, tree_2):
 
     q_1, p_1, _ = tree_1.front_state
