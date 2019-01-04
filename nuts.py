@@ -56,13 +56,15 @@ def generate_samples(
     return samples, logp_samples, accept_prob, time_elapsed
 
 
-def generate_next_state(f, dt, q, logp, grad, max_height=10):
+def generate_next_state(
+        f, dt, q, logp, grad, max_height=10, hamiltonian_error_tol=100):
 
     p = draw_momentum(len(q))
     logp_joint = - compute_hamiltonian(logp, p)
     logp_joint_threshold = logp_joint - np.random.exponential()
         # Slicing variable in the log-scale.
 
+    TrajectoryTree.hamiltonian_error_tol = hamiltonian_error_tol
     tree = TrajectoryTree(f, dt, q, p, logp, grad, logp_joint, logp_joint_threshold)
     directions = 2 * (np.random.rand(max_height) < 0.5) - 1
         # Pre-allocation of random directions is unnecessary, but makes the code easier to test.
@@ -114,8 +116,9 @@ class TrajectoryTree():
     trajcetory endowed with a binary tree structure.
     """
 
-    def __init__(self, f, dt, q, p, logp, grad, joint_logp,
-                 joint_logp_threshold, hamiltonian_error_tol=100):
+    hamiltonian_error_tol = 100
+
+    def __init__(self, f, dt, q, p, logp, grad, joint_logp, joint_logp_threshold):
 
         self.f = f
         self.dt = dt
@@ -126,7 +129,6 @@ class TrajectoryTree():
         self.u_turn_detected = False
         self.min_hamiltonian = - joint_logp
         self.max_hamiltonian = - joint_logp
-        self.hamiltonian_error_tol = hamiltonian_error_tol
         self.n_acceptable_states = int(joint_logp > joint_logp_threshold)
         self.n_integration_steps = 0
 
