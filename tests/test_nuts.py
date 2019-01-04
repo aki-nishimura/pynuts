@@ -1,5 +1,5 @@
 import numpy as np
-from .. import nuts
+from .. import nuts, hmc
 from .distributions import BivariateGaussian, BivariateBanana
 
 
@@ -76,6 +76,55 @@ def test_u_turn():
     assert last_doubling_rejected_1 == last_doubling_rejected_2 == True
 
 
+def test_instability_detection():
+
+    bi_gauss = BivariateGaussian(rho=.9999, sigma=np.array([1., 1.]))
+    f = bi_gauss.compute_logp_and_gradient
+    dt = .99 * bi_gauss.get_stepsize_stability_limit()
+
+    q_1 = np.array([0., 0.])
+    p_1 = np.array([1.2, 1.0])
+    logp_1, grad_1 = f(q_1)
+
+    # Find a tree height below which the U-turn does not occur when doubling
+    # repeatedly in one direction.
+    directions = - np.ones(100)
+    _, tree_height, _ = simulate_nuts_tree_dynamics(
+        f, dt, q_1, p_1, logp_1, grad_1, directions
+    )
+
+    # Calculate the numerical integration error in the forward and backward tree.
+    n_step = 2 ** (tree_height - 1) - 1
+    hamiltonian_fluctuation_backward \
+        = find_max_hamiltonian_fluctuation(f, - dt, n_step, q_1, p_1)
+    q_2, p_2, logp_2, grad_2 = nuts.integrator(f, dt, q_1, p_1, grad_1)
+    hamiltonian_fluctuation_forward \
+        = find_max_hamiltonian_fluctuation(f, dt, n_step, q_2, p_2)
+
+    # Trajectory should be declared unstable within only one of the forward
+    # or backward half-tree.
+    hamiltonian_error_tol \
+        = .5 * (hamiltonian_fluctuation_forward + hamiltonian_fluctuation_backward)
+
+    directions_1 = np.concatenate((
+        - np.ones(tree_height - 1), [1]
+    ))
+    tree_1, final_height_1, last_doubling_rejected_1 \
+        = simulate_nuts_tree_dynamics(
+            f, dt, q_1, p_1, logp_1, grad_1, directions_1, hamiltonian_error_tol
+        )
+
+    directions_2 = - directions_1
+    tree_2, final_height_2, last_doubling_rejected_2 \
+        = simulate_nuts_tree_dynamics(
+            f, dt, q_2, p_2, logp_2, grad_2, directions_2, hamiltonian_error_tol
+        )
+
+    assert abs(final_height_1 - final_height_2) == 1
+    assert tree_1.instability_detected == tree_2.instability_detected == True
+    assert last_doubling_rejected_1 != last_doubling_rejected_2
+
+
 def has_same_front_and_rear_states(tree_1, tree_2):
 
     q_1, p_1, _ = tree_1.front_state
@@ -108,11 +157,20 @@ def simulate_nuts_tree_dynamics(
     logp_joint_threshold = - float('inf')
         # Enforce all the states along the trajectory to be acceptable.
 
-    tree = nuts.TrajectoryTree(
-        f, dt, q0, p0, logp0, grad0, logp_joint, logp_joint_threshold,
-        hamiltonian_error_tol=hamiltonian_error_tol
+    nuts._TrajectoryTree.hamiltonian_error_tol = hamiltonian_error_tol
+    tree = nuts._TrajectoryTree(
+        f, dt, q0, p0, logp0, grad0, logp_joint, logp_joint_threshold
     )
     tree, final_height, last_doubling_rejected \
         = nuts._grow_trajectory_recursively(tree, directions)
 
     return tree, final_height, last_doubling_rejected
+
+
+def find_max_hamiltonian_fluctuation(f, dt, n_step, q0, p0):
+
+    logp0, grad0 = f(q0)
+    _, _, _, _, info = hmc.simulate_dynamics(
+        f, dt, n_step, q0, p0, logp0, grad0, hamiltonian_tol=float('inf')
+    )
+    return np.ptp(info['energy_trajectory'])
