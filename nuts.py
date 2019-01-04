@@ -64,8 +64,8 @@ def generate_next_state(
     logp_joint_threshold = logp_joint - np.random.exponential()
         # Slicing variable in the log-scale.
 
-    TrajectoryTree.hamiltonian_error_tol = hamiltonian_error_tol
-    tree = TrajectoryTree(f, dt, q, p, logp, grad, logp_joint, logp_joint_threshold)
+    _TrajectoryTree.hamiltonian_error_tol = hamiltonian_error_tol
+    tree = _TrajectoryTree(f, dt, q, p, logp, grad, logp_joint, logp_joint_threshold)
     directions = 2 * (np.random.rand(max_height) < 0.5) - 1
         # Pre-allocation of random directions is unnecessary, but makes the code easier to test.
     tree, final_height, last_doubling_rejected \
@@ -110,7 +110,7 @@ def _grow_trajectory_recursively(tree, directions):
     return tree, height, doubling_rejected
 
 
-class TrajectoryTree():
+class _TrajectoryTree():
     """
     Collection of (a subset of) states along the simulated Hamiltonian dynamics
     trajcetory endowed with a binary tree structure.
@@ -168,7 +168,7 @@ class TrajectoryTree():
             joint_logp = - float('inf')
         else:
             joint_logp = - compute_hamiltonian(logp, p)
-        return TrajectoryTree(
+        return _TrajectoryTree(
             self.f, self.dt, q, p, logp, grad, joint_logp, self.joint_logp_threshold
         )
 
