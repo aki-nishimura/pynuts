@@ -97,7 +97,8 @@ class TrajectoryTree():
     trajcetory endowed with a binary tree structure.
     """
 
-    def __init__(self, f, dt, q, p, logp, grad, joint_logp, joint_logp_threshold):
+    def __init__(self, f, dt, q, p, logp, grad, joint_logp,
+                 joint_logp_threshold, hamiltonian_error_tol=100):
 
         self.f = f
         self.dt = dt
@@ -108,13 +109,14 @@ class TrajectoryTree():
         self.u_turn_detected = False
         self.min_hamiltonian = - joint_logp
         self.max_hamiltonian = - joint_logp
+        self.hamiltonian_error_tol = hamiltonian_error_tol
         self.n_acceptable_states = int(joint_logp > joint_logp_threshold)
         self.n_integration_steps = 0
 
     @property
     def instability_detected(self):
-        hamiltonian_error_tol = 100
-        return self.max_hamiltonian - self.min_hamiltonian > hamiltonian_error_tol
+        fluctuation_along_trajectory = self.max_hamiltonian - self.min_hamiltonian
+        return fluctuation_along_trajectory > self.hamiltonian_error_tol
 
     def double_trajectory(self, height, direction):
         next_tree = self._build_next_tree(
