@@ -69,7 +69,7 @@ def generate_next_state(
     directions = 2 * (np.random.rand(max_height) < 0.5) - 1
         # Pre-allocation of random directions is unnecessary, but makes the code easier to test.
     tree, final_height, last_doubling_rejected \
-        = _grow_trajectory_recursively(tree, directions)
+        = _grow_trajectory_till_u_turn(tree, directions)
 
     info = {
         'ave_accept_prob': float('nan'),
@@ -84,7 +84,7 @@ def generate_next_state(
     return q, logp, grad, info
 
 
-def _grow_trajectory_recursively(tree, directions):
+def _grow_trajectory_till_u_turn(tree, directions):
 
     height = 0 # Referred to as 'depth' in the original paper, but arguably the
                # trajectory tree is built 'upward' on top of the existing ones.
