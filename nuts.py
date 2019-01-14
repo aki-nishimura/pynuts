@@ -136,13 +136,6 @@ class _TrajectoryTree():
         self.ave_hamiltonian_error = abs(init_joint_logp - joint_logp)
         self.ave_accept_prob = min(1, math.exp(joint_logp - init_joint_logp))
 
-    def _clone_tree(self, q, p, logp, grad, joint_logp):
-        """ Construct a tree with shared dyanmics and acceptance criteria. """
-        return _TrajectoryTree(
-            self.f, self.dt, q, p, logp, grad, joint_logp, self.init_joint_logp,
-            self.joint_logp_threshold, self.hamiltonian_error_tol
-        )
-
     @property
     def n_node(self):
         return 2 ** self.height
@@ -185,13 +178,20 @@ class _TrajectoryTree():
             joint_logp = - compute_hamiltonian(logp, p)
         return self._clone_tree(q, p, logp, grad, joint_logp)
 
+    def _clone_tree(self, q, p, logp, grad, joint_logp):
+        """ Construct a tree with shared dyanmics and acceptance criteria. """
+        return _TrajectoryTree(
+            self.f, self.dt, q, p, logp, grad, joint_logp, self.init_joint_logp,
+            self.joint_logp_threshold, self.hamiltonian_error_tol
+        )
+
     def _merge_next_tree(self, next_tree, direction, sampling_method):
 
         # Trajectory termination flags from the next tree must be propagated up
         # the call stack, but other states of the tree is updated only if the
         # next tree is accessible from the current tree (i.e. the trajectory
         # did not get terminated within the next tree).
-        
+
         self.u_turn_detected = self.u_turn_detected or next_tree.u_turn_detected
         self.min_hamiltonian = min(self.min_hamiltonian, next_tree.min_hamiltonian)
         self.max_hamiltonian = max(self.max_hamiltonian, next_tree.max_hamiltonian)
