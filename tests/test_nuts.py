@@ -125,6 +125,36 @@ def test_instability_detection():
     assert last_doubling_rejected_1 != last_doubling_rejected_2
 
 
+def test_integration_error_calculation():
+    f, stability_limit, q0, p0, logp0, grad0 = setup_gaussian_target()
+    dt = .5 * stability_limit
+
+    # Simulate the trajectory forward until U-turn.
+    directions = np.ones(10)
+    tree, final_height, last_doubling_rejected \
+            = simulate_nuts_tree_dynamics(f, dt, q0, p0, logp0, grad0, directions)
+
+    # Simulate the same trajectory and compare the statistics.
+    if last_doubling_rejected:
+        n_step = 2 ** (final_height - 1) - 1
+    else:
+        n_step = 2 ** final_height - 1
+
+    q, p, logp, grad, simulation_info \
+        = hmc.simulate_dynamics(f, dt, n_step, q0, p0, logp0, grad0)
+    hamiltonian_errors = simulation_info['energy_trajectory']
+    hamiltonian_errors -= hamiltonian_errors[0]
+
+    assert np.allclose(
+        tree.ave_hamiltonian_error, np.mean(np.abs(hamiltonian_errors)),
+        atol=10e-10, rtol=10e-5
+    )
+    assert np.allclose(
+        tree.ave_accept_prob, np.mean(np.minimum(1, np.exp(-hamiltonian_errors))),
+        atol=10e-10, rtol=10e-5
+    )
+
+
 def has_same_front_and_rear_states(tree_1, tree_2):
 
     q_1, p_1, _ = tree_1.front_state
