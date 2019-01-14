@@ -132,6 +132,12 @@ class _TrajectoryTree():
         self.n_acceptable_states = int(joint_logp > joint_logp_threshold)
         self.n_integration_steps = 0
 
+    def _clone_tree(self, q, p, logp, grad, joint_logp):
+        """ Construct a tree with shared dyanmics and acceptance criteria. """
+        return _TrajectoryTree(
+            self.f, self.dt, q, p, logp, grad, joint_logp, self.joint_logp_threshold
+        )
+
     @property
     def instability_detected(self):
         fluctuation_along_trajectory = self.max_hamiltonian - self.min_hamiltonian
@@ -168,9 +174,7 @@ class _TrajectoryTree():
             joint_logp = - float('inf')
         else:
             joint_logp = - compute_hamiltonian(logp, p)
-        return _TrajectoryTree(
-            self.f, self.dt, q, p, logp, grad, joint_logp, self.joint_logp_threshold
-        )
+        return self._clone_tree(q, p, logp, grad, joint_logp)
 
     def _merge_next_tree(self, next_tree, direction, sampling_method):
 
