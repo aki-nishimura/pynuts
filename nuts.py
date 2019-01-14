@@ -129,8 +129,8 @@ class _TrajectoryTree():
         self.min_hamiltonian = - joint_logp
         self.max_hamiltonian = - joint_logp
         self.hamiltonian_error_tol = hamiltonian_error_tol
-        self.n_acceptable_states = int(joint_logp > joint_logp_threshold)
-        self.n_integration_steps = 0
+        self.n_acceptable_state = int(joint_logp > joint_logp_threshold)
+        self.n_integration_step = 0
         self.init_joint_logp = init_joint_logp
         self.height = 0
         self.ave_hamiltonian_error = abs(init_joint_logp - joint_logp)
@@ -171,7 +171,7 @@ class _TrajectoryTree():
 
     def _build_next_singleton_tree(self, q, p, grad, direction):
         q, p, logp, grad = integrator(self.f, direction * self.dt, q, p, grad)
-        self.n_integration_steps += 1
+        self.n_integration_step += 1
         if math.isinf(logp):
             joint_logp = - float('inf')
         else:
@@ -200,7 +200,7 @@ class _TrajectoryTree():
 
         if not trajectory_terminated_within_next_tree:
             self._update_sample(next_tree, sampling_method)
-            self.n_acceptable_states += next_tree.n_acceptable_states
+            self.n_acceptable_state += next_tree.n_acceptable_state
             self._set_states(*next_tree._get_states(direction), direction)
             self.u_turn_detected \
                 = self.u_turn_detected or self._check_u_turn_at_front_and_rear_ends()
@@ -220,12 +220,12 @@ class _TrajectoryTree():
         method: {'uniform', 'swap'}
         """
         if method == 'uniform':
-            n_total = self.n_acceptable_states + next_tree.n_acceptable_states
+            n_total = self.n_acceptable_state + next_tree.n_acceptable_state
             sampling_weight_on_next_tree \
-                = next_tree.n_acceptable_states / max(1, n_total)
+                = next_tree.n_acceptable_state / max(1, n_total)
         elif method == 'swap':
             sampling_weight_on_next_tree \
-                = next_tree.n_acceptable_states / self.n_acceptable_states
+                = next_tree.n_acceptable_state / self.n_acceptable_state
         if np.random.uniform() < sampling_weight_on_next_tree:
             self.sample = next_tree.sample
 
