@@ -64,7 +64,7 @@ def generate_next_state(
     logp_joint_threshold = logp_joint - np.random.exponential()
         # Slicing variable in the log-scale.
 
-    tree = _TrajectoryTree(f, dt, q, p, logp, grad, logp_joint,
+    tree = _TrajectoryTree(f, dt, q, p, logp, grad, logp_joint, logp_joint,
                            logp_joint_threshold, hamiltonian_error_tol)
     directions = 2 * (np.random.rand(max_height) < 0.5) - 1
         # Pre-allocation of random directions is unnecessary, but makes the code easier to test.
@@ -116,7 +116,7 @@ class _TrajectoryTree():
     trajcetory endowed with a binary tree structure.
     """
 
-    def __init__(self, f, dt, q, p, logp, grad, joint_logp,
+    def __init__(self, f, dt, q, p, logp, grad, joint_logp, init_joint_logp,
                  joint_logp_threshold, hamiltonian_error_tol=100.):
 
         self.f = f
@@ -131,13 +131,21 @@ class _TrajectoryTree():
         self.hamiltonian_error_tol = hamiltonian_error_tol
         self.n_acceptable_states = int(joint_logp > joint_logp_threshold)
         self.n_integration_steps = 0
+        self.init_joint_logp = init_joint_logp
+        self.height = 0
+        self.ave_hamiltonian_error = abs(init_joint_logp - joint_logp)
+        self.ave_accept_prob = min(1, math.exp(joint_logp - init_joint_logp))
 
     def _clone_tree(self, q, p, logp, grad, joint_logp):
         """ Construct a tree with shared dyanmics and acceptance criteria. """
         return _TrajectoryTree(
-            self.f, self.dt, q, p, logp, grad, joint_logp,
+            self.f, self.dt, q, p, logp, grad, joint_logp, self.init_joint_logp,
             self.joint_logp_threshold, self.hamiltonian_error_tol
         )
+
+    @property
+    def n_node(self):
+        return 2 ** self.height
 
     @property
     def instability_detected(self):
@@ -191,6 +199,12 @@ class _TrajectoryTree():
             self._set_states(*next_tree._get_states(direction), direction)
             self.u_turn_detected \
                 = self.u_turn_detected or self._check_u_turn_at_front_and_rear_ends()
+            weight = self.n_node / (self.n_node + next_tree.n_node)
+            self.ave_hamiltonian_error \
+                = weight * self.ave_hamiltonian_error + (1 - weight) * next_tree.ave_hamiltonian_error
+            self.ave_accept_prob \
+                = weight * self.ave_accept_prob + (1 - weight) * next_tree.ave_accept_prob
+            self.height += 1
 
         return trajectory_terminated_within_next_tree
 
