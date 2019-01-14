@@ -187,6 +187,11 @@ class _TrajectoryTree():
 
     def _merge_next_tree(self, next_tree, direction, sampling_method):
 
+        # Trajectory termination flags from the next tree must be propagated up
+        # the call stack, but other states of the tree is updated only if the
+        # next tree is accessible from the current tree (i.e. the trajectory
+        # did not get terminated within the next tree).
+        
         self.u_turn_detected = self.u_turn_detected or next_tree.u_turn_detected
         self.min_hamiltonian = min(self.min_hamiltonian, next_tree.min_hamiltonian)
         self.max_hamiltonian = max(self.max_hamiltonian, next_tree.max_hamiltonian)
