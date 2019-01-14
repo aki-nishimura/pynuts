@@ -64,8 +64,8 @@ def generate_next_state(
     logp_joint_threshold = logp_joint - np.random.exponential()
         # Slicing variable in the log-scale.
 
-    _TrajectoryTree.hamiltonian_error_tol = hamiltonian_error_tol
-    tree = _TrajectoryTree(f, dt, q, p, logp, grad, logp_joint, logp_joint_threshold)
+    tree = _TrajectoryTree(f, dt, q, p, logp, grad, logp_joint,
+                           logp_joint_threshold, hamiltonian_error_tol)
     directions = 2 * (np.random.rand(max_height) < 0.5) - 1
         # Pre-allocation of random directions is unnecessary, but makes the code easier to test.
     tree, final_height, last_doubling_rejected \
@@ -116,9 +116,8 @@ class _TrajectoryTree():
     trajcetory endowed with a binary tree structure.
     """
 
-    hamiltonian_error_tol = 100
-
-    def __init__(self, f, dt, q, p, logp, grad, joint_logp, joint_logp_threshold):
+    def __init__(self, f, dt, q, p, logp, grad, joint_logp,
+                 joint_logp_threshold, hamiltonian_error_tol=100.):
 
         self.f = f
         self.dt = dt
@@ -129,13 +128,15 @@ class _TrajectoryTree():
         self.u_turn_detected = False
         self.min_hamiltonian = - joint_logp
         self.max_hamiltonian = - joint_logp
+        self.hamiltonian_error_tol = hamiltonian_error_tol
         self.n_acceptable_states = int(joint_logp > joint_logp_threshold)
         self.n_integration_steps = 0
 
     def _clone_tree(self, q, p, logp, grad, joint_logp):
         """ Construct a tree with shared dyanmics and acceptance criteria. """
         return _TrajectoryTree(
-            self.f, self.dt, q, p, logp, grad, joint_logp, self.joint_logp_threshold
+            self.f, self.dt, q, p, logp, grad, joint_logp,
+            self.joint_logp_threshold, self.hamiltonian_error_tol
         )
 
     @property

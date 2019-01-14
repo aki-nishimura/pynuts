@@ -157,9 +157,9 @@ def simulate_nuts_tree_dynamics(
     logp_joint_threshold = - float('inf')
         # Enforce all the states along the trajectory to be acceptable.
 
-    nuts._TrajectoryTree.hamiltonian_error_tol = hamiltonian_error_tol
     tree = nuts._TrajectoryTree(
-        f, dt, q0, p0, logp0, grad0, logp_joint, logp_joint_threshold
+        f, dt, q0, p0, logp0, grad0, logp_joint, logp_joint_threshold,
+        hamiltonian_error_tol
     )
     tree, final_height, last_doubling_rejected \
         = nuts._grow_trajectory_till_u_turn(tree, directions)
