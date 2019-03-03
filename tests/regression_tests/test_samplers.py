@@ -40,7 +40,7 @@ def run_sampler(sampler):
             f, theta0, dt, n_step, n_burnin, n_sample, seed=seed)[0]
     elif sampler == 'nuts':
         samples = nuts.generate_samples(
-            f, theta0, dt, n_burnin, n_sample, seed=seed)[0]
+            f, theta0, n_burnin, n_sample, dt, seed=seed)[0]
     else:
         raise NotImplementedError()
 
