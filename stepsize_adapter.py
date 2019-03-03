@@ -1,5 +1,6 @@
 from math import exp, log, log10, sqrt, copysign
 from .util import warn_message_only
+import scipy.stats as stats
 
 
 class HamiltonianBasedStepsizeAdapter():
@@ -25,8 +26,8 @@ class HamiltonianBasedStepsizeAdapter():
         self.log_stepsize_averaged = log_init_stepsize
         self.n_averaged = 0
         self.target_accept_prob = target_accept_prob
-        self.target_log10_hamiltonian_error = log10(sqrt(1 - target_accept_prob))
-            # Theoretically, average acceptance rate should be 1 - target_log10_hamiltonian_error ** 2
+        self.target_log10_hamiltonian_error \
+            = self.convert_to_log_hamiltonian_error(target_accept_prob)
 
         self.rm_stepsizer = RobbinsMonroStepsizer(
             init=init_adaptsize,
@@ -34,6 +35,23 @@ class HamiltonianBasedStepsizeAdapter():
             reference_iteration=reference_iteration,
             size_at_reference=adaptsize_at_reference
         )
+
+    @staticmethod
+    def convert_to_log_hamiltonian_error(target_accept_prob):
+        """ Calculate the target squared Hamiltonian error in the log scale.
+
+        Under a high-dimensional limit of i.i.d. parameters, the Hamiltonian
+        error is distributed as
+            Normal(mean = - delta / 2, var = delta),
+        and the corresponding average acceptance rate is
+            2 GausssianCDF(- sqrt(delta) / 2).
+        So we solve for `delta` that theoretically achieves the target acceptance
+        rate and try to calibrate the average square error of the Hamiltonian
+        to be the theoretical value (delta^2 / 4 + delta).
+        """
+        delta = 4 * stats.norm.ppf(target_accept_prob / 2) ** 2
+        target_log10_hamiltonian_error = .5 * log10(delta + delta ** 2 / 4)
+        return target_log10_hamiltonian_error
 
     def get_current_stepsize(self, averaged=False):
         if averaged:
