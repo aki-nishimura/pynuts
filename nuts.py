@@ -13,7 +13,7 @@ draw_momentum = dynamics.draw_momentum
 
 
 def generate_samples(
-        f, q0, dt_range, n_burnin, n_sample, seed=None, n_update=0,
+        f, q0, n_burnin, n_sample, dt_range=None, seed=None, n_update=0,
         adapt_stepsize=False, target_accept_prob=.9, final_adaptsize=.05):
     """
     Implements the No-U-Turn Sampler (NUTS) of Hoffman and Gelman (2011).
@@ -22,13 +22,23 @@ def generate_samples(
     -----------
     f: callable
        Return the log probability and gradient evaluated at q.
-    dt_range: float or ndarray of length 2
+    dt_range: None, float, or ndarray of length 2
     """
 
     # TODO: return additional info.
 
     if seed is not None:
         np.random.seed(seed)
+
+    q = q0
+    logp, grad = f(q)
+
+    if dt_range is None:
+        p = draw_momentum(len(q))
+        logp_joint0 = - compute_hamiltonian(logp, p)
+        dt_range = find_reasonable_dt(
+            lambda dt: compute_onestep_accept_prob(dt, f, q, p, grad, logp_joint0)
+        )
 
     if np.isscalar(dt_range):
         dt_range = np.array(2 * [dt_range])
@@ -38,7 +48,6 @@ def generate_samples(
         reference_iteration=n_burnin, adaptsize_at_reference=final_adaptsize
     )
 
-    q = q0
     if n_update > 0:
         n_per_update = math.ceil((n_burnin + n_sample) / n_update)
     else:
@@ -48,7 +57,6 @@ def generate_samples(
     accept_prob = np.zeros(n_sample + n_burnin)
 
     tic = time.time()
-    logp, grad = f(q)
     use_averaged_stepsize = False
     for i in range(n_sample + n_burnin):
         dt = np.random.uniform(dt_range[0], dt_range[1])
@@ -68,6 +76,13 @@ def generate_samples(
     time_elapsed = toc - tic
 
     return samples, logp_samples, accept_prob, time_elapsed
+
+
+def compute_onestep_accept_prob(dt, f, q0, p0, grad0, logp_joint0):
+    _, p, logp, _ = integrator(f, dt, q0, p0, grad0)
+    logp_joint = - compute_hamiltonian(logp, p)
+    accept_prob = np.exp(logp_joint - logp_joint0)
+    return accept_prob
 
 
 def generate_next_state(
@@ -264,16 +279,14 @@ class _TrajectoryTree():
             return self.rear_state
 
 
-# TODO: put this function inside the stepsize_adapter module?
+def find_reasonable_dt(compute_acceptprob, dt=1.0):
+    """ Heuristic for choosing an initial value of dt
 
-def find_reasonable_dt(f, q0, dt=1.0):
-    """ Heuristic for choosing an initial value of dt. """
-
-    p0 = draw_momentum(len(q0))
-    logp0, grad0 = f(q0)
-    logp_joint0 = - compute_hamiltonian(logp0, p0)
-    compute_acceptprob = lambda dt: \
-        compute_onestep_acceptprob(dt, f, q0, p0, grad0, logp_joint0)
+    Parameters
+    ----------
+    compute_acceptprob: callable
+        Computes the acceptance probability of the proposal one-step HMC proposal.
+    """
 
     # Figure out what direction we should be moving dt.
     acceptprob = compute_acceptprob(dt)
@@ -289,10 +302,3 @@ def find_reasonable_dt(f, q0, dt=1.0):
             break
 
     return dt
-
-
-def compute_onestep_acceptprob(dt, f, q0, p0, grad0, logp_joint0):
-    _, p, logp, _ = integrator(f, dt, q0, p0, grad0)
-    logp_joint = - compute_hamiltonian(logp, p)
-    acceptprob = np.exp(logp_joint - logp_joint0)
-    return acceptprob
