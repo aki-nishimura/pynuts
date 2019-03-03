@@ -38,8 +38,8 @@ def generate_samples(
     use_averaged_stepsize = False
     for i in range(n_sample + n_burnin):
         dt = np.random.uniform(dt_range[0], dt_range[1])
-        q, logp, grad, info \
-            = generate_next_state(f, dt, q, logp, grad)
+        q, info = generate_next_state(f, dt, q, logp, grad)
+        logp, grad = info['logp'], info['grad']
         if i < n_burnin and adapt_stepsize:
             pass
             # TODO: adapt stepsize.
@@ -70,8 +70,11 @@ def generate_next_state(
         # Pre-allocation of random directions is unnecessary, but makes the code easier to test.
     tree, final_height, last_doubling_rejected \
         = _grow_trajectory_till_u_turn(tree, directions)
+    q, logp, grad = tree.sample
 
     info = {
+        'logp': logp,
+        'grad': grad,
         'ave_accept_prob': float('nan'),
         'ave_hamiltonian_error': float('nan'),
         'tree_height': final_height,
@@ -80,8 +83,7 @@ def generate_next_state(
         'last_doubling_rejected': last_doubling_rejected
     }
 
-    q, logp, grad = tree.sample
-    return q, logp, grad, info
+    return q, info
 
 
 def _grow_trajectory_till_u_turn(tree, directions):
