@@ -18,7 +18,8 @@ def generate_samples(
         final_adaptsize=.05):
     """ Run HMC and return samples and some additional info. """
 
-    np.random.seed(seed)
+    if seed is not None:
+        np.random.seed(seed)
 
     if np.isscalar(dt_range):
         dt_range = np.array(2 * [dt_range])
