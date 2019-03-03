@@ -265,30 +265,34 @@ class _TrajectoryTree():
 
 
 # TODO: put this function inside the stepsize_adapter module?
-def find_reasonable_dt(q0, grad0, logp0, f):
-    """ Heuristic for choosing an initial value of dt """
 
-    dt = 1.0
-    p0 = np.random.normal(0, 1, len(q0))
+def find_reasonable_dt(f, q0, dt=1.0):
+    """ Heuristic for choosing an initial value of dt. """
+
+    p0 = draw_momentum(len(q0))
+    logp0, grad0 = f(q0)
+    logp_joint0 = - compute_hamiltonian(logp0, p0)
+    compute_acceptprob = lambda dt: \
+        compute_onestep_acceptprob(dt, f, q0, p0, grad0, logp_joint0)
 
     # Figure out what direction we should be moving dt.
-    _, pprime, logpprime, gradprime = integrator(f, dt, q0, p0, grad0)
-    if math.isinf(logpprime):
-        acceptprob = 0
-    else:
-        acceptprob = np.exp(logpprime - logp0 - 0.5 * (np.dot(pprime, pprime) - np.dot(p0, p0)))
-    a = 2 * int(acceptprob > 0.5) - 1
+    acceptprob = compute_acceptprob(dt)
+    direc = 2 * int(acceptprob > 0.5) - 1
 
     # Keep moving dt in that direction until acceptprob crosses 0.5.
-    while acceptprob == 0 or ((2 * acceptprob) ** a > 1):
-        dt = dt * (2 ** a)
-        _, pprime, logpprime, _ = integrator(f, dt, q0, p0, grad0)
-        if math.isinf(logpprime):
-            acceptprob = 0
-            if a == 1: # The last doubling of stepsize was too much.
-                dt = dt / 2
-                break
-        else:
-            acceptprob = np.exp(logpprime - logp0 - 0.5 * (np.dot(pprime, pprime) - np.dot(p0, p0)))
+    while acceptprob == 0 or (2 * acceptprob) ** direc > 1:
+        dt = dt * (2 ** direc)
+        acceptprob = compute_acceptprob(dt)
+        if acceptprob == 0 and direc == 1:
+            # The last doubling of stepsize was too much.
+            dt /= 2
+            break
 
     return dt
+
+
+def compute_onestep_acceptprob(dt, f, q0, p0, grad0, logp_joint0):
+    _, p, logp, _ = integrator(f, dt, q0, p0, grad0)
+    logp_joint = - compute_hamiltonian(logp, p)
+    acceptprob = np.exp(logp_joint - logp_joint0)
+    return acceptprob
