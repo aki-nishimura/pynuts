@@ -49,6 +49,8 @@ class HamiltonianBasedStepsizeAdapter():
         rate and try to calibrate the average square error of the Hamiltonian
         to be the theoretical value (delta^2 / 4 + delta).
         """
+        if target_accept_prob <= 0 or target_accept_prob >= 1:
+            raise ValueError("Target probability must be within (0, 1).")
         delta = 4 * stats.norm.ppf(target_accept_prob / 2) ** 2
         target_log10_hamiltonian_error = .5 * log10(delta + delta ** 2 / 4)
         return target_log10_hamiltonian_error
