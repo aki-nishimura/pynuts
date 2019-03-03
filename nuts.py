@@ -1,6 +1,7 @@
 import numpy as np
 import math
 import time
+from .stepsize_adapter import HamiltonianBasedStepsizeAdapter
 from .dynamics import HamiltonianDynamics
 from .util import warn_message_only
 
@@ -12,10 +13,8 @@ draw_momentum = dynamics.draw_momentum
 
 
 def generate_samples(
-        f, q0, dt_range, n_burnin, n_sample,
-        seed=None, n_update=0, adapt_stepsize=False):
-
-    # TODO: incorporate the stepsize adaptation.
+        f, q0, dt_range, n_burnin, n_sample, seed=None, n_update=0,
+        adapt_stepsize=False, target_accept_prob=.9, final_adaptsize=.05):
     # TODO: return additional info.
 
     if seed is not None:
@@ -23,6 +22,11 @@ def generate_samples(
 
     if np.isscalar(dt_range):
         dt_range = np.array(2 * [dt_range])
+
+    max_stepsize_adapter = HamiltonianBasedStepsizeAdapter(
+        init_stepsize=1., target_accept_prob=target_accept_prob,
+        reference_iteration=n_burnin, adaptsize_at_reference=final_adaptsize
+    )
 
     q = q0
     if n_update > 0:
@@ -38,11 +42,11 @@ def generate_samples(
     use_averaged_stepsize = False
     for i in range(n_sample + n_burnin):
         dt = np.random.uniform(dt_range[0], dt_range[1])
+        dt *= max_stepsize_adapter.get_current_stepsize(use_averaged_stepsize)
         q, info = generate_next_state(f, dt, q, logp, grad)
         logp, grad = info['logp'], info['grad']
         if i < n_burnin and adapt_stepsize:
-            pass
-            # TODO: adapt stepsize.
+            max_stepsize_adapter.adapt_stepsize(info['ave_hamiltonian_error'])
         elif i == n_burnin - 1:
             use_averaged_stepsize = True
         samples[:, i] = q
@@ -75,8 +79,8 @@ def generate_next_state(
     info = {
         'logp': logp,
         'grad': grad,
-        'ave_accept_prob': float('nan'),
-        'ave_hamiltonian_error': float('nan'),
+        'ave_accept_prob': tree.ave_accept_prob,
+        'ave_hamiltonian_error': tree.ave_hamiltonian_error,
         'tree_height': final_height,
         'u_turn_detected': tree.u_turn_detected,
         'instability_detected': tree.instability_detected,
