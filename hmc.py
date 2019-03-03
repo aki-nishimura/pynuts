@@ -1,7 +1,7 @@
 import numpy as np
 import math
 import time
-from .stepsize_adapter import HmcStepsizeAdapter
+from .stepsize_adapter import HamiltonianBasedStepsizeAdapter
 from .util import warn_message_only
 from .dynamics import HamiltonianDynamics
 
@@ -26,7 +26,7 @@ def generate_samples(
     if np.isscalar(nstep_range):
         nstep_range = np.array(2 * [nstep_range])
 
-    max_stepsize_adapter = HmcStepsizeAdapter(
+    max_stepsize_adapter = HamiltonianBasedStepsizeAdapter(
         init_stepsize=1., target_accept_prob=target_accept_prob,
         reference_iteration=n_burnin, adaptsize_at_reference=final_adaptsize
     )

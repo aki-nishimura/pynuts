@@ -2,7 +2,11 @@ from math import exp, log, log10, sqrt, copysign
 from .util import warn_message_only
 
 
-class HmcStepsizeAdapter():
+class HamiltonianBasedStepsizeAdapter():
+    """
+    Updates the stepsize of an HMC integrator so that the average Hamiltonian
+    error matches a pre-specified target value.
+    """
 
     def __init__(self, init_stepsize, target_accept_prob=.9,
                  init_adaptsize=1., adapt_decay_exponent=1.,
@@ -134,7 +138,7 @@ class RobbinsMonroStepsizer():
         return stepsize
 
 
-class StepsizeAdapter():
+class RobbinsMonroStepsizeAdapter():
 
     def __init__(self, init_stepsize, target_accept_prob=.9,
                  init_adaptsize=1., adapt_decay_exponent=1.,
