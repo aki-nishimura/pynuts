@@ -15,6 +15,16 @@ draw_momentum = dynamics.draw_momentum
 def generate_samples(
         f, q0, dt_range, n_burnin, n_sample, seed=None, n_update=0,
         adapt_stepsize=False, target_accept_prob=.9, final_adaptsize=.05):
+    """
+    Implements the No-U-Turn Sampler (NUTS) of Hoffman and Gelman (2011).
+
+    Parameters:
+    -----------
+    f: callable
+       Return the log probability and gradient evaluated at q.
+    dt_range: float or ndarray of length 2
+    """
+
     # TODO: return additional info.
 
     if seed is not None:
