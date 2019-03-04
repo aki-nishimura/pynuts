@@ -34,6 +34,7 @@ def generate_samples(
             lambda dt: compute_onestep_accept_prob(dt, f, q, p, grad, logp_joint0)
         )
         dt_range = dt * np.array([.8, 1.0])
+        adapt_stepsize = True
 
     if np.isscalar(nstep_range):
         nstep_range = np.array(2 * [nstep_range])

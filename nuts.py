@@ -21,8 +21,11 @@ def generate_samples(
     Parameters:
     -----------
     f: callable
-       Return the log probability and gradient evaluated at q.
+        Return the log probability and gradient evaluated at q.
     dt_range: None, float, or ndarray of length 2
+    adapt_stepsize: bool
+        If True, the max stepsize will be adjusted to to achieve the target
+        acceptance rate. Forced to be True if dt_range is None.
     """
 
     # TODO: return additional info.
@@ -43,6 +46,7 @@ def generate_samples(
             lambda dt: compute_onestep_accept_prob(dt, f, q, p, grad, logp_joint0)
         )
         dt_range = dt * np.array([.8, 1.0])
+        adapt_stepsize = True
 
     max_stepsize_adapter = HamiltonianBasedStepsizeAdapter(
         init_stepsize=1., target_accept_prob=target_accept_prob,
