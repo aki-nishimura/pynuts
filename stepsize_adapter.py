@@ -120,6 +120,31 @@ class HamiltonianBasedStepsizeAdapter():
         return adapt_size
 
 
+def initialize_stepsize(compute_acceptprob, dt=1.0):
+    """ Heuristic for choosing an initial value of dt
+
+    Parameters
+    ----------
+    compute_acceptprob: callable
+        Computes the acceptance probability of the proposal one-step HMC proposal.
+    """
+
+    # Figure out what direction we should be moving dt.
+    acceptprob = compute_acceptprob(dt)
+    direc = 2 * int(acceptprob > 0.5) - 1
+
+    # Keep moving dt in that direction until acceptprob crosses 0.5.
+    while acceptprob == 0 or (2 * acceptprob) ** direc > 1:
+        dt = dt * (2 ** direc)
+        acceptprob = compute_acceptprob(dt)
+        if acceptprob == 0 and direc == 1:
+            # The last doubling of stepsize was too much.
+            dt /= 2
+            break
+
+    return dt
+
+
 class RobbinsMonroStepsizer():
 
     def __init__(self, init=1., decay_exponent=1.,

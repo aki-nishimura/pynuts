@@ -1,7 +1,7 @@
 import numpy as np
 import math
 import time
-from .stepsize_adapter import HamiltonianBasedStepsizeAdapter
+from .stepsize_adapter import HamiltonianBasedStepsizeAdapter, initialize_stepsize
 from .dynamics import HamiltonianDynamics
 from .util import warn_message_only
 
@@ -36,7 +36,7 @@ def generate_samples(
     if dt_range is None:
         p = draw_momentum(len(q))
         logp_joint0 = - compute_hamiltonian(logp, p)
-        dt_range = find_reasonable_dt(
+        dt_range = initialize_stepsize(
             lambda dt: compute_onestep_accept_prob(dt, f, q, p, grad, logp_joint0)
         )
 
@@ -277,28 +277,3 @@ class _TrajectoryTree():
             return self.front_state
         else:
             return self.rear_state
-
-
-def find_reasonable_dt(compute_acceptprob, dt=1.0):
-    """ Heuristic for choosing an initial value of dt
-
-    Parameters
-    ----------
-    compute_acceptprob: callable
-        Computes the acceptance probability of the proposal one-step HMC proposal.
-    """
-
-    # Figure out what direction we should be moving dt.
-    acceptprob = compute_acceptprob(dt)
-    direc = 2 * int(acceptprob > 0.5) - 1
-
-    # Keep moving dt in that direction until acceptprob crosses 0.5.
-    while acceptprob == 0 or (2 * acceptprob) ** direc > 1:
-        dt = dt * (2 ** direc)
-        acceptprob = compute_acceptprob(dt)
-        if acceptprob == 0 and direc == 1:
-            # The last doubling of stepsize was too much.
-            dt /= 2
-            break
-
-    return dt
