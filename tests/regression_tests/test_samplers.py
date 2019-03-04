@@ -37,7 +37,7 @@ def run_sampler(sampler):
 
     if sampler == 'hmc':
         samples = hmc.generate_samples(
-            f, theta0, dt, n_step, n_burnin, n_sample, seed=seed)[0]
+            f, theta0, n_burnin, n_sample, n_step, dt, seed=seed)[0]
     elif sampler == 'nuts':
         samples = nuts.generate_samples(
             f, theta0, n_burnin, n_sample, dt, seed=seed)[0]
