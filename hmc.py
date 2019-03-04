@@ -24,15 +24,16 @@ def generate_samples(
     q = q0
     logp, grad = f(q)
 
-    if dt_range is None:
-        p = draw_momentum(len(q))
-        logp_joint0 = - compute_hamiltonian(logp, p)
-        dt_range = initialize_stepsize(
-            lambda dt: compute_onestep_accept_prob(dt, f, q, p, grad, logp_joint0)
-        )
-
     if np.isscalar(dt_range):
         dt_range = np.array(2 * [dt_range])
+
+    elif dt_range is None:
+        p = draw_momentum(len(q))
+        logp_joint0 = - compute_hamiltonian(logp, p)
+        dt = initialize_stepsize(
+            lambda dt: compute_onestep_accept_prob(dt, f, q, p, grad, logp_joint0)
+        )
+        dt_range = dt * np.array([.8, 1.0])
 
     if np.isscalar(nstep_range):
         nstep_range = np.array(2 * [nstep_range])
