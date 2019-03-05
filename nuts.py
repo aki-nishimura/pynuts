@@ -28,8 +28,6 @@ def generate_samples(
         acceptance rate. Forced to be True if dt_range is None.
     """
 
-    # TODO: return additional info.
-
     if seed is not None:
         np.random.seed(seed)
 
@@ -60,15 +58,19 @@ def generate_samples(
     samples = np.zeros((len(q), n_sample + n_burnin))
     logp_samples = np.zeros(n_sample + n_burnin)
     accept_prob = np.zeros(n_sample + n_burnin)
+    max_dt = np.zeros(n_burnin)
 
     tic = time.time()
     use_averaged_stepsize = False
     for i in range(n_sample + n_burnin):
+        dt_multiplier \
+            = max_stepsize_adapter.get_current_stepsize(use_averaged_stepsize)
         dt = np.random.uniform(dt_range[0], dt_range[1])
-        dt *= max_stepsize_adapter.get_current_stepsize(use_averaged_stepsize)
+        dt *= dt_multiplier
         q, info = generate_next_state(f, dt, q, logp, grad)
         logp, grad = info['logp'], info['grad']
         if i < n_burnin and adapt_stepsize:
+            max_dt[i] = dt_range[1] * dt_multiplier
             max_stepsize_adapter.adapt_stepsize(info['ave_hamiltonian_error'])
         elif i == n_burnin - 1:
             use_averaged_stepsize = True
@@ -80,7 +82,15 @@ def generate_samples(
     toc = time.time()
     time_elapsed = toc - tic
 
-    return samples, logp_samples, accept_prob, time_elapsed
+    info = {
+        'logp_samples': logp_samples,
+        'accept_prob_samples': accept_prob,
+        'sampling_time': time_elapsed
+    }
+    if adapt_stepsize:
+        info['max_stepsize'] = max_dt
+
+    return samples, info
 
 
 def compute_onestep_accept_prob(dt, f, q0, p0, grad0, logp_joint0):
