@@ -157,21 +157,20 @@ def simulate_dynamics(f, dt, n_step, q0, p0, logp0, grad0, hamiltonian_tol=float
         hamiltonians[1] = hamiltonian
         min_h, max_h = update_running_minmax(min_h, max_h, hamiltonian)
         n_grad_evals += 1
-        if math.isinf(logp) or (max_h - min_h) > hamiltonian_tol:
-            instability_detected = True
+        instability_detected \
+            = math.isinf(logp) or (max_h - min_h) > hamiltonian_tol
 
     for i in range(1, n_step):
-
+        if instability_detected:
+            break
         q, p, logp, grad \
             = integrator(f, dt, q, p, grad)
         hamiltonian = compute_hamiltonian(logp, p)
         hamiltonians[i + 1] = hamiltonian
         min_h, max_h = update_running_minmax(min_h, max_h, hamiltonian)
         n_grad_evals += 1
-
-        if math.isinf(logp) or (max_h - min_h) > hamiltonian_tol:
-            instability_detected = True
-            break
+        instability_detected \
+            = math.isinf(logp) or (max_h - min_h) > hamiltonian_tol
 
     info = {
         'energy_trajectory': hamiltonians,
