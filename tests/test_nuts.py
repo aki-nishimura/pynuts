@@ -1,5 +1,6 @@
 import numpy as np
-from .. import nuts, hmc
+from .. import hmc
+from ..nuts import NoUTurnSampler, _TrajectoryTree
 from .distributions import BivariateGaussian, BivariateBanana
 
 
@@ -19,7 +20,8 @@ def test_tree_building_algorithm():
         f, dt, q_1, p_1, logp_1, grad_1, directions
     )
     # Try generating the same tree from a neighboring state
-    q_2, p_2, logp_2, grad_2 = nuts.integrator(f, dt, q_1, p_1, grad_1)
+    q_2, p_2, logp_2, grad_2 \
+        = NoUTurnSampler(f).dynamics.integrate(f, dt, q_1, p_1, grad_1)
     directions = - directions
     tree_2, _, _ = simulate_nuts_tree_dynamics(
         f, dt, q_2, p_2, logp_2, grad_2, directions
@@ -97,7 +99,8 @@ def test_instability_detection():
     n_step = 2 ** (tree_height - 1) - 1
     hamiltonian_fluctuation_backward \
         = find_max_hamiltonian_fluctuation(f, - dt, n_step, q_1, p_1)
-    q_2, p_2, logp_2, grad_2 = nuts.integrator(f, dt, q_1, p_1, grad_1)
+    q_2, p_2, logp_2, grad_2 \
+        = NoUTurnSampler(f).dynamics.integrate(f, dt, q_1, p_1, grad_1)
     hamiltonian_fluctuation_forward \
         = find_max_hamiltonian_fluctuation(f, dt, n_step, q_2, p_2)
 
@@ -183,12 +186,13 @@ def simulate_nuts_tree_dynamics(
         f, dt, q0, p0, logp0, grad0, directions,
         hamiltonian_error_tol=float('inf')):
 
-    logp_joint = - nuts.compute_hamiltonian(logp0, p0)
+    nuts = NoUTurnSampler(f)
+    logp_joint = - nuts.dynamics.compute_hamiltonian(logp0, p0)
     logp_joint_threshold = - float('inf')
         # Enforce all the states along the trajectory to be acceptable.
 
-    tree = nuts._TrajectoryTree(
-        f, dt, q0, p0, logp0, grad0, logp_joint, logp_joint,
+    tree = _TrajectoryTree(
+        nuts.dynamics, f, dt, q0, p0, logp0, grad0, logp_joint, logp_joint,
         logp_joint_threshold, hamiltonian_error_tol
     )
     tree, final_height, last_doubling_rejected \

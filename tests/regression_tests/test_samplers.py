@@ -4,7 +4,8 @@ sys.path.append('../..')
 sys.path.append('../../..')
 
 import numpy as np
-from hamiltonian_monte_carlo import hmc, nuts
+from hamiltonian_monte_carlo import hmc
+from hamiltonian_monte_carlo.nuts import NoUTurnSampler
 from hamiltonian_monte_carlo.tests.distributions import BivariateGaussian
 
 data_folder = 'saved_outputs'
@@ -39,8 +40,9 @@ def run_sampler(sampler):
         samples = hmc.generate_samples(
             f, theta0, n_burnin, n_sample, n_step, dt, seed=seed)[0]
     elif sampler == 'nuts':
+        nuts = NoUTurnSampler(f)
         samples = nuts.generate_samples(
-            f, theta0, n_burnin, n_sample, dt, seed=seed)[0]
+            theta0, n_burnin, n_sample, dt, seed=seed)[0]
     else:
         raise NotImplementedError()
 
