@@ -163,7 +163,8 @@ class _TrajectoryTree():
     """
 
     def __init__(self, f, dt, q, p, logp, grad, joint_logp, init_joint_logp,
-                 joint_logp_threshold, hamiltonian_error_tol=100.):
+                 joint_logp_threshold, hamiltonian_error_tol=100.,
+                 u_turn_criterion='momentum'):
 
         self.f = f
         self.dt = dt
@@ -181,6 +182,7 @@ class _TrajectoryTree():
         self.height = 0
         self.ave_hamiltonian_error = abs(init_joint_logp - joint_logp)
         self.ave_accept_prob = min(1, math.exp(joint_logp - init_joint_logp))
+        self.velocity_based_u_turn = (u_turn_criterion == 'velocity')
 
     @property
     def n_node(self):
@@ -279,7 +281,13 @@ class _TrajectoryTree():
         q_front, p_front, _ = self._get_states(1)
         q_rear, p_rear, _ = self._get_states(-1)
         dq = q_front - q_rear
-        return (np.dot(dq, p_front) < 0) or (np.dot(dq, p_rear) < 0)
+        if self.velocity_based_u_turn:
+            v_front = dynamics.convert_to_velocity(p_front)
+            v_rear = dynamics.convert_to_velocity(p_rear)
+            u_turned = (np.dot(dq, v_front) < 0) or (np.dot(dq, v_rear) < 0)
+        else:
+            u_turned = (np.dot(dq, p_front) < 0) or (np.dot(dq, p_rear) < 0)
+        return u_turned
 
     def _set_states(self, q, p, grad, direction):
         if direction > 0:

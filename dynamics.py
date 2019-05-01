@@ -36,6 +36,9 @@ class HamiltonianDynamics():
         kinetic = - self.momentum.get_logp(p)
         return potential + kinetic
 
+    def convert_to_velocity(self, p):
+        return - self.momentum.get_grad(p)
+
 
 def velocity_verlet(
         get_position_logp_and_grad, get_momentum_grad, dt, q, p, position_grad
