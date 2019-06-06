@@ -114,13 +114,15 @@ def test_instability_detection():
     ))
     tree_1, final_height_1, last_doubling_rejected_1 \
         = simulate_nuts_tree_dynamics(
-            f, dt, q_1, p_1, logp_1, grad_1, directions_1, hamiltonian_error_tol
+            f, dt, q_1, p_1, logp_1, grad_1, directions_1,
+            hamiltonian_error_tol=hamiltonian_error_tol
         )
 
     directions_2 = - directions_1
     tree_2, final_height_2, last_doubling_rejected_2 \
         = simulate_nuts_tree_dynamics(
-            f, dt, q_2, p_2, logp_2, grad_2, directions_2, hamiltonian_error_tol
+            f, dt, q_2, p_2, logp_2, grad_2, directions_2,
+            hamiltonian_error_tol=hamiltonian_error_tol
         )
 
     assert abs(final_height_1 - final_height_2) == 1
@@ -183,10 +185,10 @@ def setup_gaussian_target():
 
 
 def simulate_nuts_tree_dynamics(
-        f, dt, q0, p0, logp0, grad0, directions,
+        f, dt, q0, p0, logp0, grad0, directions, mass=None,
         hamiltonian_error_tol=float('inf')):
 
-    nuts = NoUTurnSampler(f)
+    nuts = NoUTurnSampler(f, mass)
     logp_joint = - nuts.dynamics.compute_hamiltonian(logp0, p0)
     logp_joint_threshold = - float('inf')
         # Enforce all the states along the trajectory to be acceptable.
