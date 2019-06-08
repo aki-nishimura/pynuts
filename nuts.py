@@ -104,13 +104,15 @@ class NoUTurnSampler():
         accept_prob = np.exp(logp_joint - logp_joint0)
         return accept_prob
 
-    def generate_next_state(self, dt, q, logp=None, grad=None,
+    def generate_next_state(self, dt, q, logp=None, grad=None, p=None,
                             max_height=10, hamiltonian_error_tol=100):
 
         if logp is None or grad is None:
             logp, grad = self.f(q)
             
-        p = self.dynamics.draw_momentum(len(q))
+        if p is None:
+            p = self.dynamics.draw_momentum(len(q))
+
         logp_joint = - self.dynamics.compute_hamiltonian(logp, p)
         logp_joint_threshold = logp_joint - np.random.exponential()
             # Slicing variable in the log-scale.
