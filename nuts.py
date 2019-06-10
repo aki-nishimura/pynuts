@@ -164,15 +164,16 @@ class NoUTurnSampler():
                 # No transition to the next half of trajectory takes place if the
                 # termination criteria are met within the next half tree.
 
-            trajectory_terminated \
-                = tree.u_turn_detected or tree.instability_detected
             height += 1
-            if height >= max_height and (not tree.u_turn_detected):
+            trajectory_terminated \
+                = tree.u_turn_detected or tree.instability_detected or (height >= max_height)
+            maxed_before_u_turn \
+                = height >= max_height and (not tree.u_turn_detected)
+            if maxed_before_u_turn:
                 warn_message_only(
                     'The trajectory tree reached the max height of {:d} before '
                     'meeting the U-turn condition.'.format(max_height)
                 )
-                trajectory_terminated = True
 
         return tree, height, doubling_rejected
 
