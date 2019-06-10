@@ -167,7 +167,7 @@ class NoUTurnSampler():
             trajectory_terminated \
                 = tree.u_turn_detected or tree.instability_detected
             height += 1
-            if height >= max_height and (not trajectory_terminated):
+            if height >= max_height and (not tree.u_turn_detected):
                 warn_message_only(
                     'The trajectory tree reached the max height of {:d} before '
                     'meeting the U-turn condition.'.format(max_height)
