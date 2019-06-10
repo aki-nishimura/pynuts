@@ -125,7 +125,7 @@ class NoUTurnSampler():
         )
         directions = 2 * (np.random.rand(max_height) < 0.5) - 1
             # Pre-allocation of random directions is unnecessary, but makes the code easier to test.
-        tree, final_height, last_doubling_rejected \
+        tree, final_height, last_doubling_rejected, maxed_before_u_turn \
             = self._grow_trajectory_till_u_turn(tree, directions)
         q, logp, grad = tree.sample
         n_grad_evals += tree.n_integration_step
@@ -134,6 +134,12 @@ class NoUTurnSampler():
             warn_message_only(
                 "Numerical integration became unstable while simulating a "
                 "NUTS trajectory."
+            )
+
+        if maxed_before_u_turn:
+            warn_message_only(
+                'The trajectory tree reached the max height of {:d} before '
+                'meeting the U-turn condition.'.format(max_height)
             )
 
         info = {
@@ -169,13 +175,8 @@ class NoUTurnSampler():
                 = tree.u_turn_detected or tree.instability_detected or (height >= max_height)
             maxed_before_u_turn \
                 = height >= max_height and (not tree.u_turn_detected)
-            if maxed_before_u_turn:
-                warn_message_only(
-                    'The trajectory tree reached the max height of {:d} before '
-                    'meeting the U-turn condition.'.format(max_height)
-                )
 
-        return tree, height, doubling_rejected
+        return tree, height, doubling_rejected, maxed_before_u_turn
 
 
 class _TrajectoryTree():

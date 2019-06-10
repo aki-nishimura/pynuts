@@ -197,7 +197,7 @@ def simulate_nuts_tree_dynamics(
         nuts.dynamics, f, dt, q0, p0, logp0, grad0, logp_joint, logp_joint,
         logp_joint_threshold, hamiltonian_error_tol
     )
-    tree, final_height, last_doubling_rejected \
+    tree, final_height, last_doubling_rejected, _ \
         = nuts._grow_trajectory_till_u_turn(tree, directions)
 
     return tree, final_height, last_doubling_rejected
