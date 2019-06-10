@@ -130,6 +130,12 @@ class NoUTurnSampler():
         q, logp, grad = tree.sample
         n_grad_evals += tree.n_integration_step
 
+        if tree.instability_detected:
+            warn_message_only(
+                "Numerical integration became unstable while simulating a "
+                "NUTS trajectory."
+            )
+
         info = {
             'logp': logp,
             'grad': grad,
