@@ -8,7 +8,7 @@ from .util import warn_message_only
 
 class NoUTurnSampler():
 
-    def __init__(self, f, mass=None):
+    def __init__(self, f, mass=None, warning_requested=True):
         """
         Parameters
         ----------
@@ -18,6 +18,7 @@ class NoUTurnSampler():
         """
         self.f = f
         self.dynamics = HamiltonianDynamics(mass)
+        self.warning_requested = warning_requested
 
     def generate_samples(
             self, q0, n_burnin, n_sample, dt_range=None, seed=None, n_update=0,
@@ -130,16 +131,9 @@ class NoUTurnSampler():
         q, logp, grad = tree.sample
         n_grad_evals += tree.n_integration_step
 
-        if tree.instability_detected:
-            warn_message_only(
-                "Numerical integration became unstable while simulating a "
-                "NUTS trajectory."
-            )
-
-        if maxed_before_u_turn:
-            warn_message_only(
-                'The trajectory tree reached the max height of {:d} before '
-                'meeting the U-turn condition.'.format(max_height)
+        if self.warning_requested:
+            self._issue_warnings(
+                tree.instability_detected, maxed_before_u_turn, max_height
             )
 
         info = {
@@ -155,6 +149,21 @@ class NoUTurnSampler():
         }
 
         return q, info
+
+    def _issue_warnings(
+            self, instability_detected, maxed_before_u_turn, max_height):
+
+        if instability_detected:
+            warn_message_only(
+                "Numerical integration became unstable while simulating a "
+                "NUTS trajectory."
+            )
+        if maxed_before_u_turn:
+            warn_message_only(
+                'The trajectory tree reached the max height of {:d} before '
+                'meeting the U-turn condition.'.format(max_height)
+            )
+        return
 
     @staticmethod
     def _grow_trajectory_till_u_turn(tree, directions):
