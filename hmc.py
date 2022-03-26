@@ -13,7 +13,7 @@ draw_momentum = dynamics.draw_momentum
 
 
 def generate_samples(
-        f, q0, n_burnin, n_sample, nstep_range, dt_range=None,
+        f, q0, n_warmup, n_sample, nstep_range, dt_range=None,
         seed=None, n_update=0, adapt_stepsize=False, target_accept_prob=.9,
         final_adaptsize=.05):
     """ Run HMC and return samples and some additional info. """
@@ -41,21 +41,21 @@ def generate_samples(
 
     max_stepsize_adapter = HamiltonianBasedStepsizeAdapter(
         init_stepsize=1., target_accept_prob=target_accept_prob,
-        reference_iteration=n_burnin, adaptsize_at_reference=final_adaptsize
+        reference_iteration=n_warmup, adaptsize_at_reference=final_adaptsize
     )
 
     if n_update > 0:
-        n_per_update = math.ceil((n_burnin + n_sample) / n_update)
+        n_per_update = math.ceil((n_warmup + n_sample) / n_update)
     else:
         n_per_update = float('inf')
 
-    samples = np.zeros((len(q), n_sample + n_burnin))
-    logp_samples = np.zeros(n_sample + n_burnin)
-    accept_prob = np.zeros(n_sample + n_burnin)
+    samples = np.zeros((len(q), n_sample + n_warmup))
+    logp_samples = np.zeros(n_sample + n_warmup)
+    accept_prob = np.zeros(n_sample + n_warmup)
 
     tic = time.time()  # Start clock
     use_averaged_stepsize = False
-    for i in range(n_sample + n_burnin):
+    for i in range(n_sample + n_warmup):
         dt = np.random.uniform(dt_range[0], dt_range[1])
         dt *= max_stepsize_adapter.get_current_stepsize(use_averaged_stepsize)
         nstep = np.random.randint(nstep_range[0], nstep_range[1] + 1)
@@ -65,9 +65,9 @@ def generate_samples(
         logp, grad, pathlen, accept_prob[i] = (
             info[key] for key in ['logp', 'grad', 'n_grad_evals', 'accept_prob']
         )
-        if i < n_burnin and adapt_stepsize:
+        if i < n_warmup and adapt_stepsize:
             max_stepsize_adapter.adapt_stepsize(info['hamiltonian_error'])
-        elif i == n_burnin - 1:
+        elif i == n_warmup - 1:
             use_averaged_stepsize = True
         samples[:, i] = q
         logp_samples[i] = logp
