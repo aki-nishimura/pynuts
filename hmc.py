@@ -49,7 +49,7 @@ def generate_samples(
     else:
         n_per_update = float('inf')
 
-    samples = np.zeros((len(q), n_sample + n_warmup))
+    samples = np.zeros((len(q), n_sample))
     logp_samples = np.zeros(n_sample + n_warmup)
     accept_prob = np.zeros(n_sample + n_warmup)
 
@@ -65,11 +65,14 @@ def generate_samples(
         logp, grad, pathlen, accept_prob[i] = (
             info[key] for key in ['logp', 'grad', 'n_grad_evals', 'accept_prob']
         )
-        if i < n_warmup and adapt_stepsize:
-            max_stepsize_adapter.adapt_stepsize(info['hamiltonian_error'])
-        if i == n_warmup - 1:
-            use_averaged_stepsize = True
-        samples[:, i] = q
+        if i < n_warmup:
+            if adapt_stepsize:
+                max_stepsize_adapter.adapt_stepsize(info['hamiltonian_error'])
+            if i == n_warmup - 1:
+                use_averaged_stepsize = True
+        else:
+            samples[:, i - n_warmup] = q
+
         logp_samples[i] = logp
         if (i + 1) % n_per_update == 0:
             print('{:d} iterations have been completed.'.format(i + 1))
