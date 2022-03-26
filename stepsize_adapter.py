@@ -19,9 +19,18 @@ class HamiltonianBasedStepsizeAdapter():
         reference_iteration & adaptsize_at_reference:
             Stepsize sequence of Robbins-Monro algorithm will be set so that it
             decreases to `adaptsize_at_refrence` after `reference_iteration`.
+        adapt_decay_exponent: float
+            Stepsize sequence of Robbins-Monro algorithm is set proportional to
+            `n_iterations ** - adapt_decay_exponent`. The algorithm requires the
+            exponent be in (0.5, 1] if not averaging and < 1 if averaging.
         """
         if init_stepsize <= 0:
             raise ValueError("The initial stepsize must be positive.")
+        if adapt_decay_exponent > 1.:
+            raise ValueError(
+                "Robbins-Monro algorithm requires the adaptation size to "
+                "decrease at exponent less than 1."
+            )
         log_init_stepsize = log(init_stepsize)
         self.log_stepsize = log_init_stepsize
         self.log_stepsize_averaged = log_init_stepsize
@@ -59,6 +68,11 @@ class HamiltonianBasedStepsizeAdapter():
 
     def get_current_stepsize(self, averaged=False):
         if averaged:
+            if self.rm_stepsizer.exponent == 1.:
+                warn_message_only(
+                    "Polyak-Rupper averaging may not provide any benefit unless "
+                    "using the exponent less than 1."
+                )
             return exp(self.log_stepsize_averaged)
         else:
             return exp(self.log_stepsize)
