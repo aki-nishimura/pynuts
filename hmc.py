@@ -67,7 +67,7 @@ def generate_samples(
         )
         if i < n_warmup and adapt_stepsize:
             max_stepsize_adapter.adapt_stepsize(info['hamiltonian_error'])
-        elif i == n_warmup - 1:
+        if i == n_warmup - 1:
             use_averaged_stepsize = True
         samples[:, i] = q
         logp_samples[i] = logp
