@@ -5,7 +5,7 @@ import math
 """
 Defines a (numerical) Hamiltonian dynamics based on a Gaussian momentum and the 
 velocity Verlet integrator. The code is written so that other integrators & 
-momentum distributions can also be employed straightwardly.
+momentum distributions can also be employed straightforwardly.
 """
 
 class HamiltonianDynamics():
