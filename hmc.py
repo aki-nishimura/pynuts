@@ -52,6 +52,8 @@ def generate_samples(
     samples = np.zeros((len(q), n_sample))
     logp_samples = np.zeros(n_sample + n_warmup)
     accept_prob = np.zeros(n_sample + n_warmup)
+    dt_info = np.zeros(n_sample + n_warmup)
+    nstep_info = np.zeros(n_sample + n_warmup, dtype=np.int32)
 
     tic = time.time()  # Start clock
     use_averaged_stepsize = False
@@ -62,8 +64,8 @@ def generate_samples(
         q, info = generate_next_state(
             f, dt, nstep, q, logp0=logp, grad0=grad
         )
-        logp, grad, pathlen, accept_prob[i] = (
-            info[key] for key in ['logp', 'grad', 'n_grad_evals', 'accept_prob']
+        logp, grad, accept_prob[i] = (
+            info[key] for key in ['logp', 'grad', 'accept_prob']
         )
         if i < n_warmup:
             if adapt_stepsize:
@@ -72,15 +74,25 @@ def generate_samples(
                 use_averaged_stepsize = True
         else:
             samples[:, i - n_warmup] = q
-
+            
         logp_samples[i] = logp
+        dt_info[i] = dt
+        nstep_info[i] = nstep
         if (i + 1) % n_per_update == 0:
             print('{:d} iterations have been completed.'.format(i + 1))
 
     toc = time.time()
     time_elapsed = toc - tic
-
-    return samples, logp_samples, accept_prob, time_elapsed
+    hmc_info = {
+        'n_warmup': n_warmup,
+        'n_sample': n_sample,
+        'logp': logp_samples,
+        'accept_prob': accept_prob,
+        'stepsize': dt_info,
+        'n_step': nstep_info,
+        'runtime': time_elapsed
+    }
+    return samples, hmc_info
 
 
 def compute_onestep_accept_prob(dt, f, q0, p0, grad0, logp_joint0):
