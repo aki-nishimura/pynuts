@@ -35,6 +35,7 @@ class HamiltonianBasedStepsizeAdapter():
         self.log_stepsize = log_init_stepsize
         self.log_stepsize_averaged = log_init_stepsize
         self.n_averaged = 0
+        self.n_adapt_step = 0
         self.n_exclude_from_ave = n_exclude_from_ave
         self.target_accept_prob = target_accept_prob
         self.target_log10_hamiltonian_error \
@@ -77,24 +78,19 @@ class HamiltonianBasedStepsizeAdapter():
         else:
             return exp(self.log_stepsize)
 
-    def reinitialize_averaging(self):
-        """ Restart averaging the stepsizes, discarding the prev iterations. """
-        self.log_stepsize_averaged = self.log_stepsize
-        self.n_averaged = 1
-        self.n_exclude_from_ave = 0  # No further restarting
-
     def adapt_stepsize(self, hamiltonian_error):
-        rm_stepsize = self.rm_stepsizer.calculate_stepsize(self.n_averaged)
-        self.n_averaged += 1
-        if self.n_averaged == self.n_exclude_from_ave:
-            self.reinitialize_averaging()
+        rm_stepsize = self.rm_stepsizer.calculate_stepsize(self.n_adapt_step)
         adaptsize = self.transform_to_adaptsize(hamiltonian_error)
         self.log_stepsize += rm_stepsize * adaptsize
-        weight = 1 / self.n_averaged
-        self.log_stepsize_averaged = (
-            weight * self.log_stepsize
-            + (1 - weight) * self.log_stepsize_averaged
-        )
+
+        self.n_adapt_step += 1
+        if self.n_adapt_step > self.n_exclude_from_ave:
+            self.n_averaged += 1
+            weight = 1 / self.n_averaged
+            self.log_stepsize_averaged = (
+                weight * self.log_stepsize
+                + (1 - weight) * self.log_stepsize_averaged
+            )
         return exp(self.log_stepsize)
 
     def transform_to_adaptsize(
