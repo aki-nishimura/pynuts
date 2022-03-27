@@ -15,7 +15,7 @@ draw_momentum = dynamics.draw_momentum
 def generate_samples(
         f, q0, n_warmup, n_sample, nstep_range, dt_range=None,
         seed=None, n_update=0, adapt_stepsize=False, target_accept_prob=.9,
-        final_adaptsize=.05, stepsize_averaging_frac=.5):
+        final_adaptsize=.05, stepsize_averaging_frac=.5, adapt_decay_exponent=.5):
     """ Run HMC and return samples and some additional info. """
 
     if seed is not None:
@@ -42,7 +42,8 @@ def generate_samples(
     max_stepsize_adapter = HamiltonianBasedStepsizeAdapter(
         init_stepsize=1., target_accept_prob=target_accept_prob,
         reference_iteration=n_warmup, adaptsize_at_reference=final_adaptsize,
-        n_exclude_from_ave=math.floor((1 - stepsize_averaging_frac) * n_warmup)
+        n_exclude_from_ave=math.floor((1 - stepsize_averaging_frac) * n_warmup),
+        adapt_decay_exponent=adapt_decay_exponent
     )
 
     if n_update > 0:
