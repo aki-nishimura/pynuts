@@ -66,7 +66,7 @@ class HamiltonianBasedStepsizeAdapter():
     def reinitialize_averaging(self):
         """ Restart averaging the stepsizes, discarding the prev iterations. """
         self.log_stepsize_averaged = self.log_stepsize
-        self.n_averaged = 0
+        self.n_averaged = 1
         self.n_exclude_from_ave = 0  # No further restarting
 
     def adapt_stepsize(self, hamiltonian_error):
