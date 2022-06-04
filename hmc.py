@@ -90,10 +90,12 @@ def generate_samples(
         'n_sample': n_sample,
         'logp': logp_samples,
         'accept_prob': accept_prob,
-        'stepsize': dt_info,
         'n_step': nstep_info,
         'runtime': time_elapsed
     }
+    if adapt_stepsize:
+        hmc_info['stepsize'] = dt_info
+
     return samples, hmc_info
 
 

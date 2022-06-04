@@ -21,8 +21,9 @@ class NoUTurnSampler():
         self.warning_requested = warning_requested
 
     def generate_samples(
-            self, q0, n_burnin, n_sample, dt_range=None, seed=None, n_update=0,
-            adapt_stepsize=False, target_accept_prob=.9, final_adaptsize=.05):
+            self, q0, n_warmup, n_sample, dt_range=None, seed=None,
+            n_update=0, adapt_stepsize=False, target_accept_prob=.9,
+            final_adaptsize=.05, stepsize_averaging_frac=.5, adapt_decay_exponent=.5):
         """
         Implements the No-U-Turn Sampler (NUTS) of Hoffman and Gelman (2011).
 
@@ -54,49 +55,62 @@ class NoUTurnSampler():
 
         max_stepsize_adapter = HamiltonianBasedStepsizeAdapter(
             init_stepsize=1., target_accept_prob=target_accept_prob,
-            reference_iteration=n_burnin, adaptsize_at_reference=final_adaptsize
+            reference_iteration=n_warmup, adaptsize_at_reference=final_adaptsize,
+            n_exclude_from_ave=math.floor((1 - stepsize_averaging_frac) * n_warmup),
+            adapt_decay_exponent=adapt_decay_exponent
         )
 
         if n_update > 0:
-            n_per_update = math.ceil((n_burnin + n_sample) / n_update)
+            n_per_update = math.ceil((n_warmup + n_sample) / n_update)
         else:
             n_per_update = float('inf')
-        samples = np.zeros((len(q), n_sample + n_burnin))
-        logp_samples = np.zeros(n_sample + n_burnin)
-        accept_prob = np.zeros(n_sample + n_burnin)
-        max_dt = np.zeros(n_burnin)
+
+        samples = np.zeros((len(q), n_sample))
+        logp_samples = np.zeros(n_sample + n_warmup)
+        ave_accept_prob = np.zeros(n_sample + n_warmup) # "average" along trajectory
+        dt_info = np.zeros(n_sample + n_warmup)
+        nstep_info = np.zeros(n_sample + n_warmup, dtype=np.int32)
 
         tic = time.time()
         use_averaged_stepsize = False
-        for i in range(n_sample + n_burnin):
+        for i in range(n_sample + n_warmup):
             dt_multiplier \
                 = max_stepsize_adapter.get_current_stepsize(use_averaged_stepsize)
             dt = np.random.uniform(dt_range[0], dt_range[1])
             dt *= dt_multiplier
             q, info = self.generate_next_state(dt, q, logp, grad)
-            logp, grad = info['logp'], info['grad']
-            if i < n_burnin and adapt_stepsize:
-                max_dt[i] = dt_range[1] * dt_multiplier
-                max_stepsize_adapter.adapt_stepsize(info['ave_hamiltonian_error'])
-            elif i == n_burnin - 1:
-                use_averaged_stepsize = True
-            samples[:, i] = q
+            logp, grad, ave_accept_prob[i] = (
+                info[key] for key in ['logp', 'grad', 'ave_accept_prob']
+            )
+            if i < n_warmup:
+                if adapt_stepsize:
+                    max_stepsize_adapter.adapt_stepsize(info['ave_hamiltonian_error'])
+                if i == n_warmup - 1:
+                    use_averaged_stepsize = True
+            else:
+                samples[:, i - n_warmup] = q
+
             logp_samples[i] = logp
+            dt_info[i] = dt
+            nstep_info[i] = 2 ** info['tree_height'] - 1
             if (i + 1) % n_per_update == 0:
                 print('{:d} iterations have been completed.'.format(i + 1))
 
         toc = time.time()
         time_elapsed = toc - tic
 
-        info = {
-            'logp_samples': logp_samples,
-            'accept_prob_samples': accept_prob,
-            'sampling_time': time_elapsed
+        nuts_info = {
+            'n_warmup': n_warmup,
+            'n_sample': n_sample,
+            'logp': logp_samples,
+            'ave_accept_prob': ave_accept_prob,
+            'n_step': nstep_info,
+            'runtime': time_elapsed
         }
         if adapt_stepsize:
-            info['max_stepsize'] = max_dt
+            nuts_info['stepsize'] = dt_info
 
-        return samples, info
+        return samples, nuts_info
 
 
     def compute_onestep_accept_prob(self, dt, q0, p0, grad0, logp_joint0):
