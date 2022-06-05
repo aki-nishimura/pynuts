@@ -21,7 +21,7 @@ class NoUTurnSampler():
         self.warning_requested = warning_requested
 
     def generate_samples(
-            self, q0, n_warmup, n_sample, dt_range=None, seed=None,
+            self, q0, n_warmup, n_sample, max_tree_height=10, dt_range=None, seed=None,
             n_update=0, adapt_stepsize=False, target_accept_prob=.9,
             final_adaptsize=.05, stepsize_averaging_frac=.5, adapt_decay_exponent=.5):
         """
@@ -78,7 +78,9 @@ class NoUTurnSampler():
                 = max_stepsize_adapter.get_current_stepsize(use_averaged_stepsize)
             dt = np.random.uniform(dt_range[0], dt_range[1])
             dt *= dt_multiplier
-            q, info = self.generate_next_state(dt, q, logp, grad)
+            q, info = self.generate_next_state(
+                dt, q, logp, grad, max_tree_height=max_tree_height
+            )
             logp, grad, ave_accept_prob[i] = (
                 info[key] for key in ['logp', 'grad', 'ave_accept_prob']
             )
