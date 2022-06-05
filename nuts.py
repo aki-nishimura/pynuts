@@ -120,7 +120,7 @@ class NoUTurnSampler():
         return accept_prob
 
     def generate_next_state(self, dt, q, logp=None, grad=None, p=None,
-                            max_height=10, hamiltonian_error_tol=100):
+                            max_tree_height=10, hamiltonian_error_tol=100):
 
         n_grad_evals = 0
         if logp is None or grad is None:
@@ -138,7 +138,7 @@ class NoUTurnSampler():
             self.dynamics, self.f, dt, q, p, logp, grad, logp_joint, logp_joint,
             logp_joint_threshold, hamiltonian_error_tol
         )
-        directions = 2 * (np.random.rand(max_height) < 0.5) - 1
+        directions = 2 * (np.random.rand(max_tree_height) < 0.5) - 1
             # Pre-allocation of random directions is unnecessary, but makes the code easier to test.
         tree, final_height, last_doubling_rejected, maxed_before_u_turn \
             = self._grow_trajectory_till_u_turn(tree, directions)
@@ -147,7 +147,7 @@ class NoUTurnSampler():
 
         if self.warning_requested:
             self._issue_warnings(
-                tree.instability_detected, maxed_before_u_turn, max_height
+                tree.instability_detected, maxed_before_u_turn, max_tree_height
             )
 
         info = {
