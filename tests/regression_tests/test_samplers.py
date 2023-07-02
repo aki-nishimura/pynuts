@@ -38,11 +38,11 @@ def run_sampler(sampler):
 
     if sampler == 'hmc':
         samples = hmc.generate_samples(
-            f, theta0, n_burnin, n_sample, n_step, dt, seed=seed)[0]
+            f, theta0, n_burnin, n_sample, n_step, dt_range=dt, seed=seed)[0]
     elif sampler == 'nuts':
         nuts = NoUTurnSampler(f)
         samples = nuts.generate_samples(
-            theta0, n_burnin, n_sample, dt, seed=seed)[0]
+            theta0, n_burnin, n_sample, dt_range=dt, seed=seed)[0]
     else:
         raise NotImplementedError()
 
