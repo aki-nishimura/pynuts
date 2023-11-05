@@ -6,7 +6,7 @@ from .util import warn_message_only
 from .dynamics import HamiltonianDynamics
 
 
-dynamics = HamiltonianDynamics()
+dynamics = HamiltonianDynamics(mass=None, momentum_dist='laplace')
 integrator = dynamics.integrate
 compute_hamiltonian = dynamics.compute_hamiltonian
 draw_momentum = dynamics.draw_momentum
