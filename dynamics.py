@@ -104,6 +104,8 @@ def midpoint(
         p = (1. - vel_changed) * p_prop - vel_changed * p
         q = q - 0.5 * dt * get_momentum_grad(p)
         position_logp, _ = get_position_logp_and_grad(q)
+            # TODO: Avoid having to compute log density except at the end point of
+            # a trajectory; this would require refactoring code outside this module.
     position_grad = None # Cannot recycle the gradient at next integration step
     return q, p, position_logp, position_grad
 
