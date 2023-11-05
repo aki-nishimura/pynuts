@@ -100,9 +100,8 @@ def midpoint(
     position_logp, position_grad = get_position_logp_and_grad(q)
     if math.isfinite(position_logp):
         p_prop = p + dt * position_grad
-        vel_changed = (np.sign(p_prop) != np.sign(p))
-        p[vel_changed] = - p[vel_changed]
-        p[np.logical_not(vel_changed)] = p_prop[np.logical_not(vel_changed)]
+        vel_changed = 0.5 * np.abs(np.sign(p_prop) - np.sign(p))
+        p = (1. - vel_changed) * p_prop - vel_changed * p
         q = q - 0.5 * dt * get_momentum_grad(p)
         position_logp, _ = get_position_logp_and_grad(q)
     position_grad = None # Cannot recycle the gradient at next integration step
